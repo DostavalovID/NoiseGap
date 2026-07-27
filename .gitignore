@@ -1,0 +1,14 @@
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+dist/
+
+# Licensed or generated data
+data/
+generated/
+results/
+trained_models/
+slurm_*.out
+slurm_*.err

@@ -1,0 +1,13 @@
+[
+  {
+    "date": "2026-07-27",
+    "mode": "Architecture Audit",
+    "score": 33,
+    "findings": {
+      "critical": 3,
+      "warning": 4,
+      "suggestion": 2
+    },
+    "scope": "yiyi-cs/ASL-ConNo@f46af323 full project"
+  }
+]
