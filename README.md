@@ -3,12 +3,6 @@
 NoiseGap is an auditable experiment layer for measuring how a classifier trained
 under one log-Mel noise condition behaves under another.
 
-The project was reconstructed from
-`yiyi-cs/ASL-ConNo@f46af323af907c9e7425364974a7975474d17e2f`. It deliberately does
-not vendor the full `autrainer` source tree. `autrainer==0.8.1` remains an explicit
-dependency, while NoiseGap owns only the experiment-specific dataset preparation,
-augmentations, phase-aware trainer adapter, and experiment planning.
-
 ## Evidence boundary
 
 The historical files in the source repository do **not** validate this
