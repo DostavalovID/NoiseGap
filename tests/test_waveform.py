@@ -41,6 +41,21 @@ def test_waveform_gaussian_is_deterministic_per_item() -> None:
     assert _snr_db(signal, first.features) == pytest.approx(10, abs=1e-4)
 
 
+def test_deterministic_eval_noise_is_invariant_to_worker_seed_offset() -> None:
+    signal = torch.ones((1, 4000))
+    augmentation = WaveformGaussianNoise(
+        snr_db=10,
+        deterministic_per_item=True,
+        generator_seed=11,
+    )
+    expected = augmentation(DataItem(signal.clone(), 0, 3)).features
+
+    augmentation.offset_generator_seed(7)
+    actual = augmentation(DataItem(signal.clone(), 0, 3)).features
+
+    assert torch.equal(actual, expected)
+
+
 def test_recorded_waveform_resamples_and_hits_snr(tmp_path: Path) -> None:
     noise_path = tmp_path / "noise.wav"
     t = np.arange(8000, dtype=np.float32) / 8000

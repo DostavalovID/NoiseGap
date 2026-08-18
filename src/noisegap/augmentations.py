@@ -27,6 +27,7 @@ class _SeededNoise(AbstractAugmentation):
     ) -> None:
         super().__init__(order=order, p=p, generator_seed=generator_seed)
         self.deterministic_per_item = deterministic_per_item
+        self._deterministic_seed = generator_seed
         self._noise_generator = torch.Generator()
         if generator_seed is not None:
             self._noise_generator.manual_seed(generator_seed)
@@ -39,10 +40,10 @@ class _SeededNoise(AbstractAugmentation):
     def _generator_for(self, item: AbstractDataItem) -> torch.Generator:
         if not self.deterministic_per_item:
             return self._noise_generator
-        if self.generator_seed is None:
+        if self._deterministic_seed is None:
             raise ValueError("deterministic_per_item=True requires generator_seed.")
         generator = torch.Generator()
-        generator.manual_seed(self.generator_seed + int(item.index))
+        generator.manual_seed(self._deterministic_seed + int(item.index))
         return generator
 
 
