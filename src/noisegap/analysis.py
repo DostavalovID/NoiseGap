@@ -30,6 +30,9 @@ def _validate_protocol(record: dict[str, Any], provenance: dict[str, Any]) -> No
         "train_snr_db": record["train_snr_db"],
         "test_snr_db": record["test_snr_db"],
     }
+    for key in ("model", "model_config", "seed"):
+        if key in record:
+            expected[key] = record[key]
     mismatches = {
         key: (protocol.get(key), value)
         for key, value in expected.items()
@@ -110,6 +113,11 @@ def summarize_manifest(
             {
                 "experiment_id": record["experiment_id"],
                 "phase": record["phase"],
+                **{
+                    key: record[key]
+                    for key in ("model", "model_config", "seed")
+                    if key in record
+                },
                 "train_domain": record["train_domain"],
                 "test_domain": record["test_domain"],
                 "train_snr_db": record["train_snr_db"],
@@ -134,16 +142,25 @@ def summarize_manifest(
     fixed_fields = [
         "experiment_id",
         "phase",
-        "train_domain",
-        "test_domain",
-        "train_snr_db",
-        "test_snr_db",
-        "git_revision",
-        "git_dirty",
-        "resolved_config_sha256",
-        "input_checkpoint_sha256",
-        "output_checkpoint_sha256",
     ]
+    fixed_fields.extend(
+        key
+        for key in ("model", "model_config", "seed")
+        if any(key in row for row in rows)
+    )
+    fixed_fields.extend(
+        [
+            "train_domain",
+            "test_domain",
+            "train_snr_db",
+            "test_snr_db",
+            "git_revision",
+            "git_dirty",
+            "resolved_config_sha256",
+            "input_checkpoint_sha256",
+            "output_checkpoint_sha256",
+        ]
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(

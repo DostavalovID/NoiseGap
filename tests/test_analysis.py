@@ -115,3 +115,37 @@ def test_summarizer_rejects_uncommitted_run_by_default(tmp_path: Path) -> None:
         allow_uncommitted=True,
     )
     assert (completed, missing) == (1, 0)
+
+
+def test_summarizer_preserves_model_and_seed_fields(tmp_path: Path) -> None:
+    manifest_path = _write_completed_run(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest[0].update(
+        {
+            "model": "CNN10-online-PANN",
+            "model_config": "Cnn10-32k-T-waveform",
+            "seed": 2,
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    provenance_path = (
+        tmp_path / "results" / "SS_train-5_test-5" / "noisegap_provenance.json"
+    )
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    provenance["protocol"].update(
+        {
+            "model": "CNN10-online-PANN",
+            "model_config": "Cnn10-32k-T-waveform",
+            "seed": 2,
+        }
+    )
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+    output = tmp_path / "summary.csv"
+
+    summarize_manifest(manifest_path, output)
+
+    with output.open(newline="", encoding="utf-8") as stream:
+        row = next(csv.DictReader(stream))
+    assert row["model"] == "CNN10-online-PANN"
+    assert row["model_config"] == "Cnn10-32k-T-waveform"
+    assert row["seed"] == "2"

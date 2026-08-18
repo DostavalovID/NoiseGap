@@ -3,6 +3,11 @@
 NoiseGap is an auditable experiment layer for measuring how a classifier trained
 under one log-Mel noise condition behaves under another.
 
+It also contains a separate controlled SpeechCommands protocol where CNN10 and
+AST receive the same 16 kHz waveform corruption before either model frontend.
+The two protocols are intentionally not merged: log-Mel SNR and waveform SNR are
+different experimental quantities.
+
 ## Evidence boundary
 
 The historical files in the source repository do **not** validate this
@@ -137,6 +142,75 @@ training run.
 Automatic resume is disabled because a partially resumed run would weaken the
 one-config/one-output provenance boundary. Remove or relocate an incomplete
 generated result directory before retrying it.
+
+## Controlled CNN10 versus AST waveform experiment
+
+Fetch SpeechCommands v0.02 through autrainer's existing dataset path, then make
+a file-disjoint train/test split of its bundled background-noise WAV files:
+
+```bash
+uv run autrainer fetch -cn noisegap_speechcommands
+uv run autrainer fetch -cn noisegap_speechcommands model=ASTModel-T-waveform
+uv run noisegap-prepare-speechcommands-noise
+```
+
+The background-noise split is by source file, not by random crop. This prevents
+the same long source recording from appearing in both noise manifests. It is a
+controlled in-dataset noise condition, not evidence of generalization to unseen
+real-world corpora such as MUSAN or DEMAND.
+
+Generate the headline matrix:
+
+```bash
+uv run noisegap-generate-speechcommands \
+  --output generated/speechcommands-waveform \
+  --models cnn10 ast \
+  --seeds 0 1 2 \
+  --train-snr 20 \
+  --test-snr -5 0 10 20 30 40
+```
+
+This produces 12 training runs and 132 checkpoint-reuse evaluations. Every raw
+clip is corrupted at 16 kHz before either frontend:
+
+```text
+raw SpeechCommands waveform
+  -> waveform noise at mean-square SNR (no clipping)
+     -> resample to 32 kHz -> PANN log-Mel -> CNN10
+     -> AST feature extractor at 16 kHz -> AST
+```
+
+Training noise uses the run seed. Development and test noise are deterministic
+per item with evaluation seed 0, so CNN10 and AST receive identical evaluation
+corruptions for the same item/domain/SNR. CNN10 and AST keep their own pretrained
+frontends and optimization settings; this removes the injection-space confound
+but does not make the full architectures identical.
+
+Run one bounded GPU smoke before scheduling the full matrix:
+
+```bash
+uv run noisegap-run \
+  --manifest generated/speechcommands-waveform/manifest.json \
+  --phase train --index 0 \
+  iterations=1
+```
+
+After all runs finish, validate provenance and aggregate the independent seeds:
+
+```bash
+uv run noisegap-summarize \
+  --manifest generated/speechcommands-waveform/manifest.json \
+  --output generated/speechcommands-waveform/summary.csv
+
+uv run noisegap-aggregate-seeds \
+  --input generated/speechcommands-waveform/summary.csv \
+  --output generated/speechcommands-waveform/summary-by-seed.csv
+```
+
+The aggregate retains every seed value and reports the mean, sample standard
+deviation, minimum, and maximum. With only three seeds, individual points and
+standard deviations should remain visible; a narrow-looking confidence interval
+must not be overinterpreted.
 
 ## Verification
 
