@@ -8,13 +8,19 @@ import yaml
 from .matrix import Domain, RunPhase, RunSpec
 
 
-def _augmentation(domain: Domain, snr_db: int, *, evaluation: bool) -> dict:
+def _augmentation(
+    domain: Domain,
+    snr_db: int,
+    *,
+    evaluation: bool,
+    training_seed: int,
+) -> dict:
     if domain.kind == "synthetic":
         target = "noisegap.augmentations.SyntheticLogMelNoise"
         parameters: dict[str, Any] = {
             "snr_db": float(snr_db),
             "deterministic_per_item": evaluation,
-            "generator_seed": 0,
+            "generator_seed": 0 if evaluation else training_seed,
             "p": 1.0,
         }
     else:
@@ -34,7 +40,7 @@ def _augmentation(domain: Domain, snr_db: int, *, evaluation: bool) -> dict:
             "amin": 1e-10,
             "top_db": None,
             "deterministic_per_item": evaluation,
-            "generator_seed": 0,
+            "generator_seed": 0 if evaluation else training_seed,
             "p": 1.0,
         }
     return {
@@ -48,25 +54,34 @@ def render_config(
     run: RunSpec,
     *,
     results_dir: Path,
+    base_config: str = "noisegap_base",
+    seed: int = 0,
 ) -> dict:
     """Render one config with explicit train/dev/test semantics."""
+    if not base_config or "/" in base_config or "\\" in base_config:
+        raise ValueError("base_config must be a non-empty Hydra config name.")
+    if seed < 0:
+        raise ValueError("seed must be non-negative.")
     train = _augmentation(
         run.train_domain,
         run.train_snr_db,
         evaluation=False,
+        training_seed=seed,
     )
     test = _augmentation(
         run.test_domain,
         run.test_snr_db,
         evaluation=True,
+        training_seed=seed,
     )
     dev = _augmentation(
         run.train_domain,
         run.train_snr_db,
         evaluation=True,
+        training_seed=seed,
     )
     config: dict[str, Any] = {
-        "defaults": ["noisegap_base", "_self_"],
+        "defaults": [base_config, "_self_"],
         "hydra": {
             "searchpath": [
                 "file://${oc.env:NOISEGAP_CONFIG_DIR,conf}",
@@ -75,11 +90,12 @@ def render_config(
         "results_dir": str(results_dir),
         "experiment_id": run.experiment_id,
         "iterations": run.iterations,
-        "seed": 0,
+        "seed": seed,
         "batch_size": 64,
         "learning_rate": 0.001,
         "noisegap_protocol": {
             "phase": run.phase.value,
+            "seed": seed,
             "feature_layout": "channel,time,mel",
             "corruption_space": "log_mel_power",
             "snr_definition": (
@@ -93,6 +109,7 @@ def render_config(
             "test_snr_db": run.test_snr_db,
             "checkpoint_selection_domain": run.train_domain.label,
             "checkpoint_selection_snr_db": run.train_snr_db,
+            "evaluation_noise_seed": 0,
         },
         "augmentation": {
             "id": (

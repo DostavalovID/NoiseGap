@@ -13,12 +13,13 @@ def _augmentation(
     *,
     evaluation: bool,
     training_seed: int,
+    order: int,
 ) -> dict:
     parameters: dict[str, Any] = {
         "snr_db": float(snr_db),
         "deterministic_per_item": evaluation,
         "generator_seed": 0 if evaluation else training_seed,
-        "order": -97,
+        "order": order,
         "p": 1.0,
     }
     if domain.kind == "synthetic":
@@ -44,29 +45,39 @@ def render_waveform_config(
     run: WaveformRunSpec,
     *,
     results_dir: Path,
+    base_config: str = "noisegap_speechcommands",
+    dataset_label: str = "SpeechCommands-v0.02",
+    noise_order: int = -97,
 ) -> dict[str, Any]:
     """Render one run with corruption before either model frontend."""
+    if not base_config or "/" in base_config or "\\" in base_config:
+        raise ValueError("base_config must be a non-empty Hydra config name.")
+    if not dataset_label:
+        raise ValueError("dataset_label must be non-empty.")
     train = _augmentation(
         run.train_domain,
         run.train_snr_db,
         evaluation=False,
         training_seed=run.seed,
+        order=noise_order,
     )
     dev = _augmentation(
         run.train_domain,
         run.train_snr_db,
         evaluation=True,
         training_seed=run.seed,
+        order=noise_order,
     )
     test = _augmentation(
         run.test_domain,
         run.test_snr_db,
         evaluation=True,
         training_seed=run.seed,
+        order=noise_order,
     )
     config: dict[str, Any] = {
         "defaults": [
-            "noisegap_speechcommands",
+            base_config,
             {"override /model": run.model.config},
             {"override /optimizer": run.model.optimizer},
             "_self_",
@@ -82,7 +93,7 @@ def render_waveform_config(
         "learning_rate": run.model.learning_rate,
         "noisegap_protocol": {
             "phase": run.phase.value,
-            "dataset": "SpeechCommands-v0.02",
+            "dataset": dataset_label,
             "model": run.model.label,
             "model_config": run.model.config,
             "seed": run.seed,
@@ -92,6 +103,7 @@ def render_waveform_config(
             "snr_definition": "mean_signal_square_over_mean_added_noise_square",
             "clipping_policy": "no_clipping",
             "frontend_position": "after_corruption",
+            "corruption_order": noise_order,
             "train_domain": run.train_domain.label,
             "test_domain": run.test_domain.label,
             "train_snr_db": run.train_snr_db,

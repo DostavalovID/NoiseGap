@@ -15,6 +15,7 @@ dependencies = [
 [project.scripts]
 noisegap-generate = "noisegap.experiments.cli:main"
 noisegap-generate-speechcommands = "noisegap.experiments.speechcommands_cli:main"
+noisegap-generate-waveform = "noisegap.experiments.speechcommands_cli:main"
 noisegap-prepare-timit = "noisegap.datasets.timit:main"
 noisegap-prepare-speechcommands-noise = "noisegap.datasets.speechcommands:main"
 noisegap-run = "noisegap.experiments.run:main"

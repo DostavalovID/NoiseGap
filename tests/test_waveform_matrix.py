@@ -121,3 +121,50 @@ def test_cnn10_composed_transform_order_keeps_noise_before_frontend() -> None:
         ("Resample", -95),
         ("PannMel", -90),
     ]
+
+
+def test_timit_noise_precedes_padding_and_frontend() -> None:
+    repository = Path(__file__).resolve().parents[1]
+    dataset = yaml.safe_load(
+        (
+            repository
+            / "conf/dataset/TIMIT-sentencetype-article-waveform-16k.yaml"
+        ).read_text()
+    )["transform"]
+    model = yaml.safe_load(
+        (repository / "conf/model/Cnn10-32k-T-waveform.yaml").read_text()
+    )["transform"]
+    run = next(
+        run
+        for run in build_waveform_matrix(_spec())
+        if run.phase is RunPhase.TRAIN and run.model.code == "cnn10"
+    )
+    config = render_waveform_config(
+        run,
+        results_dir=Path("results"),
+        base_config="noisegap_article_timit_waveform",
+        dataset_label="TIMIT-Sentence-Type-legacy-split",
+        noise_order=-105,
+    )
+    augmentations = AugmentationManager(
+        config["augmentation"]["train"],
+        config["augmentation"]["dev"],
+        config["augmentation"]["test"],
+    ).get_augmentations()
+
+    train, _, _ = TransformManager(model, dataset, *augmentations).get_transforms()
+    actual = [
+        (type(transform).__name__, transform.order)
+        for transform in train.transforms
+    ]
+    assert actual == [
+        ("WaveformGaussianNoise", -105),
+        ("Expand", -100),
+        ("Resample", -95),
+        ("PannMel", -90),
+    ]
+    assert config["defaults"][0] == "noisegap_article_timit_waveform"
+    assert config["noisegap_protocol"]["dataset"] == (
+        "TIMIT-Sentence-Type-legacy-split"
+    )
+    assert config["noisegap_protocol"]["corruption_order"] == -105

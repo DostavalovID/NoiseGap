@@ -75,6 +75,84 @@ The default split policy keeps the official TIMIT `TEST` tree as test data and
 creates the development set from speakers in the official `TRAIN` tree. This is
 not directly comparable with the legacy random 70/15/15 split over all speakers.
 
+### Recovered article-compatible datasets
+
+The original article used the legacy TIMIT sentence-type metadata and 16 kHz
+preprocessed features from the ASL-ConNo experiments. Keep that dataset separate
+from the safer official-TEST setup above. Locally, place or link its exact
+`train.csv`, `dev.csv`, `test.csv`, `default/`, and `log_mel_16k/` artifacts under
+`data/TIMIT-sentence-type-article`. The dedicated
+`TIMIT-sentencetype-article-16k` config prevents silently mixing the two split
+policies.
+
+SpeechCommands uses autrainer's built-in v0.02 preparation, which preserves the
+official training, validation, and testing lists. Recreate the article's 16 kHz
+64-bin PANN log-Mel input with:
+
+```bash
+uv run autrainer fetch -cn noisegap_article_speechcommands
+uv run autrainer preprocess -cn noisegap_article_speechcommands \
+  +preprocessing=log_mel_16k
+```
+
+Generate the feature-space article matrix for either dataset without changing
+the controlled waveform experiment:
+
+```bash
+uv run noisegap-generate \
+  --base-config noisegap_article_timit \
+  --seed 0 \
+  --output generated/article-timit \
+  --recorded-root data/AudioSet-Balanced-Noise \
+  --recorded-train-csv data/AudioSet-Balanced-Noise/train.csv \
+  --recorded-test-csv data/AudioSet-Balanced-Noise/test.csv
+
+uv run noisegap-generate \
+  --base-config noisegap_article_speechcommands \
+  --seed 0 \
+  --output generated/article-speechcommands \
+  --recorded-root data/AudioSet-Balanced-Noise \
+  --recorded-train-csv data/AudioSet-Balanced-Noise/train.csv \
+  --recorded-test-csv data/AudioSet-Balanced-Noise/test.csv
+```
+
+These commands reproduce the article's feature-space question. The separate
+`noisegap-generate-speechcommands` command remains the CNN10 waveform-level
+confound-control experiment.
+
+For the article-compatible TIMIT split with CNN10 waveform corruption, keep the
+same two noise domains, six train/test SNRs, optimizer, learning rate, 15-epoch
+budget, and three independent seeds. The only intended methodological change is
+that noise is mixed with each original 16 kHz utterance before zero-padding,
+resampling, and the PANN frontend:
+
+```bash
+uv run noisegap-generate-waveform \
+  --output generated/timit-waveform-cnn10 \
+  --base-config noisegap_article_timit_waveform \
+  --dataset-label TIMIT-Sentence-Type-legacy-split \
+  --recorded-label AudioSetBalancedWaveform \
+  --recorded-root data/AudioSet-Balanced-Noise \
+  --recorded-train-csv data/AudioSet-Balanced-Noise/train.csv \
+  --recorded-test-csv data/AudioSet-Balanced-Noise/test.csv \
+  --models cnn10 \
+  --seeds 0 1 2 \
+  --train-snr -5 0 10 20 30 40 \
+  --test-snr -5 0 10 20 30 40 \
+  --noise-order -105 \
+  --iterations 15
+```
+
+The recovered longest waveform has 124621 samples at 16 kHz, which becomes the
+same 779-frame CNN10 input length used by the article. Applying noise before the
+padding transform prevents artificial padded tails from changing the requested
+utterance-level waveform SNR.
+
+For independent repetitions, generate separate output directories with
+`--seed 0`, `--seed 1`, and `--seed 2`. Training corruption follows the run seed;
+development and test corruption stays fixed at seed 0 so model variance is not
+confounded with a different evaluation-noise realization.
+
 Recorded-noise WAV files are likewise user-supplied and are never downloaded or
 redistributed. Each CSV must contain one unique `path` per row, relative to
 `--recorded-root`; missing, duplicate, absolute, or escaping paths fail closed.

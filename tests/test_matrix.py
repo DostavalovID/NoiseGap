@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from noisegap.experiments.matrix import (
     Domain,
     RunPhase,
@@ -61,6 +63,28 @@ def test_rendered_protocol_is_explicit() -> None:
     )
 
 
+def test_rendered_config_can_select_article_dataset_base() -> None:
+    run = next(run for run in build_matrix(_spec()) if run.phase is RunPhase.TRAIN)
+    config = render_config(
+        run,
+        results_dir=Path("results"),
+        base_config="noisegap_article_speechcommands",
+    )
+
+    assert config["defaults"] == ["noisegap_article_speechcommands", "_self_"]
+
+
+def test_rendered_config_rejects_a_path_as_base_name() -> None:
+    run = next(run for run in build_matrix(_spec()) if run.phase is RunPhase.TRAIN)
+
+    with pytest.raises(ValueError, match="Hydra config name"):
+        render_config(
+            run,
+            results_dir=Path("results"),
+            base_config="../outside",
+        )
+
+
 def test_training_dev_noise_is_stable_but_train_noise_is_not() -> None:
     run = next(run for run in build_matrix(_spec()) if run.phase is RunPhase.TRAIN)
     config = render_config(run, results_dir=Path("results"))
@@ -77,6 +101,26 @@ def test_training_dev_noise_is_stable_but_train_noise_is_not() -> None:
         ]["deterministic_per_item"]
         is True
     )
+
+
+def test_training_seed_changes_train_but_not_evaluation_corruption() -> None:
+    run = next(run for run in build_matrix(_spec()) if run.phase is RunPhase.TRAIN)
+    config = render_config(run, results_dir=Path("results"), seed=2)
+    train_parameters = config["augmentation"]["train"]["pipeline"][0][
+        "noisegap.augmentations.SyntheticLogMelNoise"
+    ]
+    dev_parameters = config["augmentation"]["dev"]["pipeline"][0][
+        "noisegap.augmentations.SyntheticLogMelNoise"
+    ]
+    test_parameters = config["augmentation"]["test"]["pipeline"][0][
+        "noisegap.augmentations.SyntheticLogMelNoise"
+    ]
+
+    assert config["seed"] == 2
+    assert config["noisegap_protocol"]["seed"] == 2
+    assert train_parameters["generator_seed"] == 2
+    assert dev_parameters["generator_seed"] == 0
+    assert test_parameters["generator_seed"] == 0
 
 
 def test_recorded_noise_uses_speech_pann_parameters() -> None:

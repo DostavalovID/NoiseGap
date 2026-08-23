@@ -1,4 +1,4 @@
-"""Generate the controlled SpeechCommands waveform experiment matrix."""
+"""Generate a controlled waveform-level experiment matrix."""
 
 import argparse
 import json
@@ -62,6 +62,30 @@ def build_parser() -> argparse.ArgumentParser:
         default=[-5, 0, 10, 20, 30, 40],
     )
     parser.add_argument("--iterations", type=int, default=15)
+    parser.add_argument(
+        "--base-config",
+        default="noisegap_speechcommands",
+        help="Hydra base config that selects the dataset and shared training setup.",
+    )
+    parser.add_argument(
+        "--dataset-label",
+        default="SpeechCommands-v0.02",
+        help="Dataset provenance label written into every generated config.",
+    )
+    parser.add_argument(
+        "--recorded-label",
+        default="SpeechCommandsBackgroundWaveform",
+        help="Recorded-noise domain label written into configs and summaries.",
+    )
+    parser.add_argument(
+        "--noise-order",
+        type=int,
+        default=-97,
+        help=(
+            "Transform order for waveform corruption. Use a value before the "
+            "dataset padding transform for variable-length corpora."
+        ),
+    )
     return parser
 
 
@@ -85,7 +109,7 @@ def main() -> None:
             Domain("G", "GaussianWaveform", "synthetic"),
             Domain(
                 "B",
-                "SpeechCommandsBackgroundWaveform",
+                args.recorded_label,
                 "recorded",
                 root=recorded_root,
                 train_manifest=train_manifest,
@@ -105,7 +129,13 @@ def main() -> None:
         config_name = f"{run.phase.value}_{run.experiment_id}.yaml"
         write_config(
             configs_dir / config_name,
-            render_waveform_config(run, results_dir=results_dir),
+            render_waveform_config(
+                run,
+                results_dir=results_dir,
+                base_config=args.base_config,
+                dataset_label=args.dataset_label,
+                noise_order=args.noise_order,
+            ),
         )
         records.append(
             {
@@ -113,6 +143,9 @@ def main() -> None:
                 "experiment_id": run.experiment_id,
                 "model": run.model.label,
                 "model_config": run.model.config,
+                "base_config": args.base_config,
+                "dataset": args.dataset_label,
+                "corruption_order": args.noise_order,
                 "seed": run.seed,
                 "train_domain": run.train_domain.label,
                 "test_domain": run.test_domain.label,
@@ -141,7 +174,7 @@ def main() -> None:
     )
     train_count = sum(run.phase.value == "train" for run in runs)
     print(
-        f"Generated {len(runs)} SpeechCommands waveform configs: "
+        f"Generated {len(runs)} waveform configs for {args.dataset_label}: "
         f"{train_count} train, {len(runs) - train_count} evaluate."
     )
 

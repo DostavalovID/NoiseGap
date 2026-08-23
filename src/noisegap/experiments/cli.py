@@ -22,6 +22,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=[-5, 0, 10, 20, 30, 40],
     )
     parser.add_argument("--iterations", type=int, default=15)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--base-config",
+        default="noisegap_base",
+        help=(
+            "Hydra base config used by every generated run. Use an article-specific "
+            "base to keep dataset and frontend provenance explicit."
+        ),
+    )
     return parser
 
 
@@ -65,11 +74,15 @@ def main() -> None:
             render_config(
                 run,
                 results_dir=results_dir,
+                base_config=args.base_config,
+                seed=args.seed,
             ),
         )
         record = asdict(run)
         record["phase"] = run.phase.value
         record["experiment_id"] = run.experiment_id
+        record["base_config"] = args.base_config
+        record["seed"] = args.seed
         record["train_domain"] = run.train_domain.label
         record["test_domain"] = run.test_domain.label
         record["config"] = str(Path("configs") / config_name)

@@ -1,0 +1,6 @@
+defaults:
+  - noisegap_base
+  - override dataset: SpeechCommands-16k
+  - _self_
+
+experiment_id: noisegap-article-speechcommands

@@ -1,0 +1,26 @@
+id: TIMIT-sentencetype-article-16k
+_target_: noisegap.datasets.TimitSentenceType
+
+# Exact legacy metadata is adopted locally under this ignored data directory.
+# It is intentionally separate from the official-TEST split used by
+# TIMIT-sentencetype-16k.
+path: data/TIMIT-sentence-type-article
+features_subdir: log_mel_16k
+index_column: path
+target_column: sentence_type
+file_type: npy
+file_handler: autrainer.datasets.utils.NumpyFileHandler
+
+criterion: autrainer.criterions.BalancedCrossEntropyLoss
+metrics:
+  - autrainer.metrics.Accuracy
+  - autrainer.metrics.UAR
+  - autrainer.metrics.F1
+tracking_metric: autrainer.metrics.Accuracy
+
+transform:
+  type: grayscale
+  base:
+    - autrainer.transforms.Expand:
+        size: 779
+        axis: -2

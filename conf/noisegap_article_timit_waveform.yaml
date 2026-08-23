@@ -1,0 +1,7 @@
+defaults:
+  - noisegap_base
+  - override dataset: TIMIT-sentencetype-article-waveform-16k
+  - override model: Cnn10-32k-T-waveform
+  - _self_
+
+experiment_id: noisegap-article-timit-waveform
