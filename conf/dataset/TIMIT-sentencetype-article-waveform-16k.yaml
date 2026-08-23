@@ -19,6 +19,22 @@ metrics:
   - autrainer.metrics.F1
 tracking_metric: autrainer.metrics.Accuracy
 
+# Online waveform corruption and PANN extraction are CPU-bound. Worker counts
+# are sized for the 24-core experiment server; deterministic evaluation noise
+# remains item-indexed and therefore invariant to worker scheduling.
+train_loader_kwargs:
+  num_workers: 8
+  pin_memory: true
+  prefetch_factor: 2
+dev_loader_kwargs:
+  num_workers: 4
+  pin_memory: true
+  prefetch_factor: 2
+test_loader_kwargs:
+  num_workers: 4
+  pin_memory: true
+  prefetch_factor: 2
+
 transform:
   type: raw
   base:
