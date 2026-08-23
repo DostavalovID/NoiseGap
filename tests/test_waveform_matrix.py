@@ -125,12 +125,13 @@ def test_cnn10_composed_transform_order_keeps_noise_before_frontend() -> None:
 
 def test_timit_noise_precedes_padding_and_frontend() -> None:
     repository = Path(__file__).resolve().parents[1]
-    dataset = yaml.safe_load(
+    dataset_config = yaml.safe_load(
         (
             repository
             / "conf/dataset/TIMIT-sentencetype-article-waveform-16k.yaml"
         ).read_text()
-    )["transform"]
+    )
+    dataset = dataset_config["transform"]
     model = yaml.safe_load(
         (repository / "conf/model/Cnn10-32k-T-waveform.yaml").read_text()
     )["transform"]
@@ -168,3 +169,4 @@ def test_timit_noise_precedes_padding_and_frontend() -> None:
         "TIMIT-Sentence-Type-legacy-split"
     )
     assert config["noisegap_protocol"]["corruption_order"] == -105
+    assert dataset_config["file_type"] == "WAV"

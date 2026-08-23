@@ -7,7 +7,9 @@ path: data/TIMIT-sentence-type-article
 features_subdir: default
 index_column: path
 target_column: sentence_type
-file_type: wav
+# Keep the corpus's uppercase suffix. autrainer reconstructs the path from
+# file_type, and Linux filesystems distinguish `.WAV` from `.wav`.
+file_type: WAV
 file_handler: autrainer.datasets.utils.AudioFileHandler
 
 criterion: autrainer.criterions.BalancedCrossEntropyLoss
