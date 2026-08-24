@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from .matrix import Domain
+from .matrix import Domain, validate_recorded_manifest_split
 from .render import write_config
 from .waveform_matrix import ModelSpec, WaveformSweepSpec, build_waveform_matrix
 from .waveform_render import render_waveform_config
@@ -46,6 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--recorded-test-csv",
         type=Path,
         default=Path("data/SpeechCommands-background-noise/test.csv"),
+    )
+    parser.add_argument(
+        "--recorded-dev-csv",
+        type=Path,
+        default=Path("data/SpeechCommands-background-noise/dev.csv"),
     )
     parser.add_argument(
         "--models",
@@ -94,14 +99,21 @@ def main() -> None:
     output = args.output.resolve()
     recorded_root = args.recorded_root.resolve()
     train_manifest = args.recorded_train_csv.resolve()
+    dev_manifest = args.recorded_dev_csv.resolve()
     test_manifest = args.recorded_test_csv.resolve()
     if not recorded_root.is_dir():
         raise FileNotFoundError(f"Recorded-noise root does not exist: {recorded_root}")
-    for manifest in (train_manifest, test_manifest):
+    for manifest in (train_manifest, dev_manifest, test_manifest):
         if not manifest.is_file():
             raise FileNotFoundError(
                 f"Recorded-noise manifest does not exist: {manifest}"
             )
+    validate_recorded_manifest_split(
+        recorded_root,
+        train_manifest,
+        dev_manifest,
+        test_manifest,
+    )
 
     spec = WaveformSweepSpec(
         models=tuple(MODELS[name] for name in args.models),
@@ -113,6 +125,7 @@ def main() -> None:
                 "recorded",
                 root=recorded_root,
                 train_manifest=train_manifest,
+                dev_manifest=dev_manifest,
                 test_manifest=test_manifest,
             ),
         ),
@@ -160,8 +173,7 @@ def main() -> None:
                     None
                     if run.phase.value == "train"
                     else str(
-                        Path("configs")
-                        / f"train_{run.training_experiment_id}.yaml"
+                        Path("configs") / f"train_{run.training_experiment_id}.yaml"
                     )
                 ),
             }

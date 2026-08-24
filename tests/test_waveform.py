@@ -8,7 +8,11 @@ import torch
 from autrainer.core.structs import DataItem
 
 from noisegap.augmentations import RecordedWaveformNoise, WaveformGaussianNoise
-from noisegap.waveform import fit_noise_sample_axis, mix_waveform_at_snr
+from noisegap.waveform import (
+    fit_noise_sample_axis,
+    fit_nonzero_noise_sample_axis,
+    mix_waveform_at_snr,
+)
 
 
 def _snr_db(signal: torch.Tensor, mixed: torch.Tensor) -> float:
@@ -86,3 +90,33 @@ def test_noise_repeats_only_along_sample_axis() -> None:
 def test_waveform_mix_rejects_silence() -> None:
     with pytest.raises(ValueError, match="Signal has zero"):
         mix_waveform_at_snr(torch.zeros((1, 10)), torch.ones((1, 10)), 0)
+
+
+def test_recorded_noise_crop_retries_silent_regions_deterministically() -> None:
+    noise = torch.cat((torch.zeros((1, 100)), torch.ones((1, 20))), dim=-1)
+
+    first = fit_nonzero_noise_sample_axis(
+        noise,
+        10,
+        torch.Generator().manual_seed(0),
+        max_attempts=64,
+    )
+    second = fit_nonzero_noise_sample_axis(
+        noise,
+        10,
+        torch.Generator().manual_seed(0),
+        max_attempts=64,
+    )
+
+    assert first.square().mean() > 0
+    assert torch.equal(first, second)
+
+
+def test_recorded_noise_crop_fails_closed_if_every_crop_is_silent() -> None:
+    with pytest.raises(ValueError, match="nonzero-power crop"):
+        fit_nonzero_noise_sample_axis(
+            torch.zeros((1, 100)),
+            10,
+            torch.Generator().manual_seed(0),
+            max_attempts=4,
+        )

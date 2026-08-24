@@ -13,7 +13,7 @@ from autrainer.transforms import PannMel
 from torchaudio import functional as audio_functional
 
 from .log_mel import EPSILON, db_to_power, fit_noise_time_axis, mix_power_at_snr
-from .waveform import fit_noise_sample_axis, mix_waveform_at_snr
+from .waveform import fit_nonzero_noise_sample_axis, mix_waveform_at_snr
 
 
 class _SeededNoise(AbstractAugmentation):
@@ -288,6 +288,7 @@ class RecordedWaveformNoise(_SeededNoise):
         manifest_csv: Optional[str] = None,
         deterministic_per_item: bool = False,
         cache_size: int = 16,
+        max_crop_attempts: int = 32,
         order: int = -97,
         p: float = 1.0,
         generator_seed: Optional[int] = None,
@@ -304,6 +305,9 @@ class RecordedWaveformNoise(_SeededNoise):
         self.sample_rate = sample_rate
         self.manifest_csv = manifest_csv
         self.cache_size = cache_size
+        if max_crop_attempts <= 0:
+            raise ValueError("max_crop_attempts must be positive.")
+        self.max_crop_attempts = max_crop_attempts
         self.noise_files = self._discover_noise_files()
         self._cache: OrderedDict[Path, torch.Tensor] = OrderedDict()
 
@@ -376,10 +380,11 @@ class RecordedWaveformNoise(_SeededNoise):
                     "Recorded noise channel count does not match signal: "
                     f"{noise.shape[0]} vs {item.features.shape[0]}."
                 )
-        noise = fit_noise_sample_axis(
+        noise = fit_nonzero_noise_sample_axis(
             noise,
             item.features.shape[-1],
             generator,
+            max_attempts=self.max_crop_attempts,
         ).to(device=item.features.device, dtype=item.features.dtype)
         item.features = mix_waveform_at_snr(item.features, noise, self.snr_db)
         return item

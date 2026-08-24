@@ -105,6 +105,7 @@ uv run noisegap-generate \
   --output generated/article-timit \
   --recorded-root data/AudioSet-Balanced-Noise \
   --recorded-train-csv data/AudioSet-Balanced-Noise/train.csv \
+  --recorded-dev-csv data/AudioSet-Balanced-Noise/dev.csv \
   --recorded-test-csv data/AudioSet-Balanced-Noise/test.csv
 
 uv run noisegap-generate \
@@ -113,6 +114,7 @@ uv run noisegap-generate \
   --output generated/article-speechcommands \
   --recorded-root data/AudioSet-Balanced-Noise \
   --recorded-train-csv data/AudioSet-Balanced-Noise/train.csv \
+  --recorded-dev-csv data/AudioSet-Balanced-Noise/dev.csv \
   --recorded-test-csv data/AudioSet-Balanced-Noise/test.csv
 ```
 
@@ -134,6 +136,7 @@ uv run noisegap-generate-waveform \
   --recorded-label AudioSetBalancedWaveform \
   --recorded-root data/AudioSet-Balanced-Noise \
   --recorded-train-csv data/AudioSet-Balanced-Noise/train.csv \
+  --recorded-dev-csv data/AudioSet-Balanced-Noise/dev.csv \
   --recorded-test-csv data/AudioSet-Balanced-Noise/test.csv \
   --models cnn10 \
   --seeds 0 1 2 \
@@ -148,14 +151,16 @@ same 779-frame CNN10 input length used by the article. Applying noise before the
 padding transform prevents artificial padded tails from changing the requested
 utterance-level waveform SNR.
 
-For independent repetitions, generate separate output directories with
-`--seed 0`, `--seed 1`, and `--seed 2`. Training corruption follows the run seed;
-development and test corruption stays fixed at seed 0 so model variance is not
-confounded with a different evaluation-noise realization.
+Training corruption follows the run seed. Development and test use distinct,
+fixed corruption seeds across all model-training seeds, so model variance is not
+confounded with different evaluation noise and checkpoint selection does not
+reuse the final-test realization.
 
 Recorded-noise WAV files are likewise user-supplied and are never downloaded or
-redistributed. Each CSV must contain one unique `path` per row, relative to
-`--recorded-root`; missing, duplicate, absolute, or escaping paths fail closed.
+redistributed. Train, development, and test use separate manifests so checkpoint
+selection never observes final-test noise files. Each CSV must contain one unique
+`path` per row, relative to `--recorded-root`; missing, duplicate, absolute, or
+escaping paths fail closed.
 
 ## Generate an experiment matrix
 
@@ -164,6 +169,7 @@ uv run noisegap-generate \
   --output generated/audioset \
   --recorded-root data/AudioSet-Balanced-Noise \
   --recorded-train-csv data/AudioSet-Balanced-Noise/train.csv \
+  --recorded-dev-csv data/AudioSet-Balanced-Noise/dev.csv \
   --recorded-test-csv data/AudioSet-Balanced-Noise/test.csv
 ```
 

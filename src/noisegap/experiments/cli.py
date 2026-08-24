@@ -5,7 +5,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from .matrix import Domain, SweepSpec, build_matrix
+from .matrix import Domain, SweepSpec, build_matrix, validate_recorded_manifest_split
 from .render import render_config, write_config
 
 
@@ -14,6 +14,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--recorded-root", type=Path, required=True)
     parser.add_argument("--recorded-train-csv", type=Path, required=True)
+    parser.add_argument("--recorded-dev-csv", type=Path, required=True)
     parser.add_argument("--recorded-test-csv", type=Path, required=True)
     parser.add_argument(
         "--snr",
@@ -39,14 +40,21 @@ def main() -> None:
     output = args.output.resolve()
     recorded_root = args.recorded_root.resolve()
     train_manifest = args.recorded_train_csv.resolve()
+    dev_manifest = args.recorded_dev_csv.resolve()
     test_manifest = args.recorded_test_csv.resolve()
     if not recorded_root.is_dir():
         raise FileNotFoundError(f"Recorded-noise root does not exist: {recorded_root}")
-    for manifest in (train_manifest, test_manifest):
+    for manifest in (train_manifest, dev_manifest, test_manifest):
         if not manifest.is_file():
             raise FileNotFoundError(
                 f"Recorded-noise manifest does not exist: {manifest}"
             )
+    validate_recorded_manifest_split(
+        recorded_root,
+        train_manifest,
+        dev_manifest,
+        test_manifest,
+    )
     spec = SweepSpec(
         domains=(
             Domain("S", "SyntheticLogMel", "synthetic"),
@@ -56,6 +64,7 @@ def main() -> None:
                 "recorded",
                 root=recorded_root,
                 train_manifest=train_manifest,
+                dev_manifest=dev_manifest,
                 test_manifest=test_manifest,
             ),
         ),

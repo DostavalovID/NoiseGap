@@ -41,6 +41,60 @@ def _git_value(*args: str) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def _input_metadata(cfg: DictConfig) -> dict:
+    """Bind split metadata and phase-specific noise manifests to a run."""
+    artifacts: dict[str, object] = {"dataset_splits": {}, "noise_manifests": {}}
+    dataset = cfg.get("dataset", {})
+    dataset_path = dataset.get("path")
+    if dataset_path:
+        for split in ("train", "dev", "test"):
+            path = Path(str(dataset_path), f"{split}.csv").resolve()
+            if path.is_file():
+                artifacts["dataset_splits"][split] = {
+                    "path": str(path),
+                    "sha256": sha256_file(path),
+                }
+
+    augmentation_config = cfg.get("augmentation", {})
+    augmentation = (
+        OmegaConf.to_container(augmentation_config, resolve=True)
+        if OmegaConf.is_config(augmentation_config)
+        else augmentation_config
+    )
+    if isinstance(augmentation, dict):
+
+        def collect_manifests(value: object, output: list[str]) -> None:
+            if isinstance(value, dict):
+                for key, nested in value.items():
+                    if key == "manifest_csv" and nested is not None:
+                        output.append(str(nested))
+                    else:
+                        collect_manifests(nested, output)
+            elif isinstance(value, list):
+                for nested in value:
+                    collect_manifests(nested, output)
+
+        for phase in ("train", "dev", "test"):
+            phase_config = augmentation.get(phase)
+            if not isinstance(phase_config, dict):
+                continue
+            manifests: list[str] = []
+            collect_manifests(phase_config, manifests)
+            if manifests:
+                phase_artifacts = []
+                for manifest in manifests:
+                    path = Path(manifest).resolve()
+                    if not path.is_file():
+                        raise FileNotFoundError(
+                            f"Configured {phase} noise manifest is missing: {path}"
+                        )
+                    phase_artifacts.append(
+                        {"path": str(path), "sha256": sha256_file(path)}
+                    )
+                artifacts["noise_manifests"][phase] = phase_artifacts
+    return artifacts
+
+
 def build_provenance(cfg: DictConfig) -> dict:
     """Build non-secret run provenance from the resolved experiment state."""
     resolved_yaml = OmegaConf.to_yaml(cfg, resolve=True)
@@ -61,6 +115,7 @@ def build_provenance(cfg: DictConfig) -> dict:
             cfg.noisegap_protocol,
             resolve=True,
         ),
+        "input_metadata": _input_metadata(cfg),
     }
     checkpoint = cfg.get("model", {}).get("model_checkpoint")
     if checkpoint:

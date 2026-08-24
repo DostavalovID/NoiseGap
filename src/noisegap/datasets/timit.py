@@ -5,12 +5,20 @@ import csv
 import json
 import random
 from pathlib import Path
+from typing import Any
 
 from autrainer.datasets import BaseClassificationDataset
 
 
 class TimitSentenceType(BaseClassificationDataset):
     """autrainer dataset whose files are prepared by `noisegap-prepare-timit`."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        path = kwargs.get("path", args[0] if args else None)
+        if path is None:
+            raise TypeError("TimitSentenceType requires path.")
+        validate_timit_metadata(Path(path))
+        super().__init__(*args, **kwargs)
 
     @staticmethod
     def download(path: str) -> None:
@@ -22,6 +30,68 @@ class TimitSentenceType(BaseClassificationDataset):
                 "NoiseGap does not download TIMIT. Obtain licensed LDC93S1 data "
                 "and run noisegap-prepare-timit before autrainer fetch."
             )
+
+
+def _read_metadata(path: Path) -> list[dict[str, str]]:
+    with path.open(newline="", encoding="utf-8") as stream:
+        rows = csv.DictReader(stream)
+        required = {"path", "sentence_type"}
+        if rows.fieldnames is None or not required.issubset(rows.fieldnames):
+            raise ValueError(f"{path} must contain columns {sorted(required)}.")
+        return list(rows)
+
+
+def validate_timit_metadata(
+    root: Path,
+    *,
+    audio_subdir: str = "default",
+) -> dict[str, int]:
+    """Verify path, speaker, label, and file separation for all TIMIT splits."""
+    split_paths: dict[str, set[Path]] = {}
+    split_speakers: dict[str, set[str]] = {}
+    counts: dict[str, int] = {}
+    audio_root = root / audio_subdir
+    for split in ("train", "dev", "test"):
+        metadata = root / f"{split}.csv"
+        if not metadata.is_file():
+            raise FileNotFoundError(f"Missing TIMIT metadata: {metadata}")
+        rows = _read_metadata(metadata)
+        if not rows:
+            raise ValueError(f"TIMIT {split} split must not be empty.")
+        paths = [Path(row["path"]) for row in rows]
+        unsafe = [path for path in paths if path.is_absolute() or ".." in path.parts]
+        if unsafe:
+            raise ValueError(f"TIMIT {split} path escapes dataset root: {unsafe[0]}")
+        if len(paths) != len(set(paths)):
+            raise ValueError(f"TIMIT {split} contains duplicate utterance paths.")
+        for row, path in zip(rows, paths, strict=True):
+            label = row["sentence_type"].upper()
+            if label not in {"SA", "SI", "SX"}:
+                raise ValueError(f"Unexpected TIMIT label '{label}' in {metadata}.")
+            if path.stem[:2].upper() != label:
+                raise ValueError(f"TIMIT label/path mismatch for {path}: {label}.")
+            if len(path.parts) < 2:
+                raise ValueError(f"Cannot derive TIMIT speaker from {path}.")
+            if not (audio_root / path).is_file():
+                raise FileNotFoundError(f"Missing TIMIT utterance: {audio_root / path}")
+        split_paths[split] = set(paths)
+        split_speakers[split] = {path.parts[-2] for path in paths}
+        counts[split] = len(paths)
+
+    for first, second in (("train", "dev"), ("train", "test"), ("dev", "test")):
+        path_overlap = split_paths[first] & split_paths[second]
+        if path_overlap:
+            raise ValueError(
+                f"TIMIT utterance leakage between {first}/{second}: "
+                f"{sorted(path_overlap)[0]}"
+            )
+        speaker_overlap = split_speakers[first] & split_speakers[second]
+        if speaker_overlap:
+            raise ValueError(
+                f"TIMIT speaker leakage between {first}/{second}: "
+                f"{sorted(speaker_overlap)[0]}"
+            )
+    return counts
 
 
 def _collect(root: Path, split: str) -> list[dict[str, str]]:

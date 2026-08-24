@@ -12,19 +12,27 @@ def _augmentation(
     domain: Domain,
     snr_db: int,
     *,
-    evaluation: bool,
+    phase: str,
     training_seed: int,
 ) -> dict:
+    if phase not in {"train", "dev", "test"}:
+        raise ValueError(f"Unknown augmentation phase: {phase}")
+    evaluation = phase != "train"
+    evaluation_seed = {"dev": 1_000_000, "test": 2_000_000}
     if domain.kind == "synthetic":
         target = "noisegap.augmentations.SyntheticLogMelNoise"
         parameters: dict[str, Any] = {
             "snr_db": float(snr_db),
             "deterministic_per_item": evaluation,
-            "generator_seed": 0 if evaluation else training_seed,
+            "generator_seed": (evaluation_seed[phase] if evaluation else training_seed),
             "p": 1.0,
         }
     else:
-        manifest = domain.test_manifest if evaluation else domain.train_manifest
+        manifest = {
+            "train": domain.train_manifest,
+            "dev": domain.dev_manifest,
+            "test": domain.test_manifest,
+        }[phase]
         target = "noisegap.augmentations.RecordedLogMelNoise"
         parameters = {
             "noise_root": str(domain.root),
@@ -40,7 +48,7 @@ def _augmentation(
             "amin": 1e-10,
             "top_db": None,
             "deterministic_per_item": evaluation,
-            "generator_seed": 0 if evaluation else training_seed,
+            "generator_seed": (evaluation_seed[phase] if evaluation else training_seed),
             "p": 1.0,
         }
     return {
@@ -65,19 +73,19 @@ def render_config(
     train = _augmentation(
         run.train_domain,
         run.train_snr_db,
-        evaluation=False,
+        phase="train",
         training_seed=seed,
     )
     test = _augmentation(
         run.test_domain,
         run.test_snr_db,
-        evaluation=True,
+        phase="test",
         training_seed=seed,
     )
     dev = _augmentation(
         run.train_domain,
         run.train_snr_db,
-        evaluation=True,
+        phase="dev",
         training_seed=seed,
     )
     config: dict[str, Any] = {
@@ -109,7 +117,8 @@ def render_config(
             "test_snr_db": run.test_snr_db,
             "checkpoint_selection_domain": run.train_domain.label,
             "checkpoint_selection_snr_db": run.train_snr_db,
-            "evaluation_noise_seed": 0,
+            "dev_noise_seed": 1_000_000,
+            "test_noise_seed": 2_000_000,
         },
         "augmentation": {
             "id": (

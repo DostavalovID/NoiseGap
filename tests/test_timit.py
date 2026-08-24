@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from noisegap.datasets.timit import prepare_timit
+from noisegap.datasets.timit import prepare_timit, validate_timit_metadata
 
 
 def _touch_utterance(root: Path, split: str, speaker: str, name: str) -> None:
@@ -36,6 +36,7 @@ def test_official_test_is_preserved_and_train_dev_are_disjoint(
     assert train.isdisjoint(dev)
     assert test == {"TEST/DR1/MTEST0/SI1.WAV"}
     assert (output / "default").resolve() == source.resolve()
+    assert validate_timit_metadata(output) == summary
 
 
 def test_existing_wrong_data_link_fails_before_metadata_overwrite(
@@ -52,3 +53,26 @@ def test_existing_wrong_data_link_fails_before_metadata_overwrite(
         prepare_timit(source, output)
 
     assert sentinel.read_text(encoding="utf-8") == "do-not-overwrite\n"
+
+
+def test_timit_metadata_rejects_speaker_overlap(tmp_path: Path) -> None:
+    root = tmp_path / "prepared"
+    audio = root / "default" / "TRAIN" / "DR1" / "MSAME0"
+    audio.mkdir(parents=True)
+    for name in ("SA1", "SX1", "SI1"):
+        (audio / f"{name}.WAV").touch()
+    (root / "train.csv").write_text(
+        "path,sentence_type\nTRAIN/DR1/MSAME0/SA1.WAV,SA\n",
+        encoding="utf-8",
+    )
+    (root / "dev.csv").write_text(
+        "path,sentence_type\nTRAIN/DR1/MSAME0/SX1.WAV,SX\n",
+        encoding="utf-8",
+    )
+    (root / "test.csv").write_text(
+        "path,sentence_type\nTRAIN/DR1/MSAME0/SI1.WAV,SI\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="speaker leakage"):
+        validate_timit_metadata(root)

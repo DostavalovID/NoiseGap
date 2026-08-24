@@ -24,6 +24,7 @@ def _spec() -> WaveformSweepSpec:
                 "recorded",
                 root=Path("noise"),
                 train_manifest=Path("noise/train.csv"),
+                dev_manifest=Path("noise/dev.csv"),
                 test_manifest=Path("noise/test.csv"),
             ),
         ),
@@ -55,8 +56,7 @@ def test_both_models_receive_the_same_deterministic_test_corruption() -> None:
     assert len(selected) == 2
 
     configs = [
-        render_waveform_config(run, results_dir=Path("results"))
-        for run in selected
+        render_waveform_config(run, results_dir=Path("results")) for run in selected
     ]
     first_test = configs[0]["augmentation"]["test"]
     second_test = configs[1]["augmentation"]["test"]
@@ -66,8 +66,31 @@ def test_both_models_receive_the_same_deterministic_test_corruption() -> None:
         "noisegap.augmentations.RecordedWaveformNoise"
     ]
     assert parameters["deterministic_per_item"] is True
-    assert parameters["generator_seed"] == 0
+    assert parameters["generator_seed"] == 2_000_000
     assert parameters["order"] == -97
+
+
+def test_recorded_dev_and_test_use_disjoint_manifests_and_seeds() -> None:
+    run = next(
+        run
+        for run in build_waveform_matrix(_spec())
+        if run.phase is RunPhase.TRAIN
+        and run.model.code == "cnn10"
+        and run.train_domain.code == "B"
+    )
+
+    config = render_waveform_config(run, results_dir=Path("results"))
+    dev = config["augmentation"]["dev"]["pipeline"][0][
+        "noisegap.augmentations.RecordedWaveformNoise"
+    ]
+    test = config["augmentation"]["test"]["pipeline"][0][
+        "noisegap.augmentations.RecordedWaveformNoise"
+    ]
+
+    assert dev["manifest_csv"] == "noise/dev.csv"
+    assert test["manifest_csv"] == "noise/test.csv"
+    assert dev["generator_seed"] == 1_000_000
+    assert test["generator_seed"] == 2_000_000
 
 
 def test_model_seed_and_waveform_contract_are_recorded() -> None:
@@ -112,8 +135,7 @@ def test_cnn10_composed_transform_order_keeps_noise_before_frontend() -> None:
     train, _, _ = TransformManager(model, dataset, *augmentations).get_transforms()
 
     actual = [
-        (type(transform).__name__, transform.order)
-        for transform in train.transforms
+        (type(transform).__name__, transform.order) for transform in train.transforms
     ]
     assert actual == [
         ("Expand", -100),
@@ -127,8 +149,7 @@ def test_timit_noise_precedes_padding_and_frontend() -> None:
     repository = Path(__file__).resolve().parents[1]
     dataset_config = yaml.safe_load(
         (
-            repository
-            / "conf/dataset/TIMIT-sentencetype-article-waveform-16k.yaml"
+            repository / "conf/dataset/TIMIT-sentencetype-article-waveform-16k.yaml"
         ).read_text()
     )
     dataset = dataset_config["transform"]
@@ -155,8 +176,7 @@ def test_timit_noise_precedes_padding_and_frontend() -> None:
 
     train, _, _ = TransformManager(model, dataset, *augmentations).get_transforms()
     actual = [
-        (type(transform).__name__, transform.order)
-        for transform in train.transforms
+        (type(transform).__name__, transform.order) for transform in train.transforms
     ]
     assert actual == [
         ("WaveformGaussianNoise", -105),

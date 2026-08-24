@@ -20,35 +20,46 @@ def prepare_background_noise_manifests(
     output_dir: Path,
     *,
     test_fraction: float = 1 / 3,
+    dev_fraction: float = 1 / 3,
     seed: int = 0,
 ) -> dict[str, object]:
-    """Split SpeechCommands background WAV files by source file."""
-    if not 0 < test_fraction < 1:
-        raise ValueError("test_fraction must be between 0 and 1.")
+    """Split SpeechCommands background WAV files into disjoint source files."""
+    if not 0 < test_fraction < 1 or not 0 < dev_fraction < 1:
+        raise ValueError("dev_fraction and test_fraction must be between 0 and 1.")
+    if dev_fraction + test_fraction >= 1:
+        raise ValueError("dev_fraction + test_fraction must be less than 1.")
     noise_root = speechcommands_root / "default" / "_background_noise_"
     files = sorted(noise_root.glob("*.wav"))
-    if len(files) < 2:
+    if len(files) < 3:
         raise ValueError(
-            "Expected at least two SpeechCommands background-noise WAV files "
+            "Expected at least three SpeechCommands background-noise WAV files "
             f"under {noise_root}."
         )
 
     random.Random(seed).shuffle(files)
-    test_count = min(len(files) - 1, max(1, round(len(files) * test_fraction)))
+    test_count = max(1, round(len(files) * test_fraction))
+    dev_count = max(1, round(len(files) * dev_fraction))
+    if test_count + dev_count >= len(files):
+        raise ValueError("Fractions leave no source files for training after rounding.")
     test_files = sorted(files[:test_count])
-    train_files = sorted(files[test_count:])
+    dev_files = sorted(files[test_count : test_count + dev_count])
+    train_files = sorted(files[test_count + dev_count :])
     train_manifest = output_dir / "train.csv"
+    dev_manifest = output_dir / "dev.csv"
     test_manifest = output_dir / "test.csv"
     _write_manifest(train_manifest, train_files, noise_root)
+    _write_manifest(dev_manifest, dev_files, noise_root)
     _write_manifest(test_manifest, test_files, noise_root)
 
     summary: dict[str, object] = {
         "source": "SpeechCommands-v0.02/_background_noise_",
         "split_unit": "source_file",
         "seed": seed,
+        "dev_fraction": dev_fraction,
         "test_fraction": test_fraction,
         "noise_root": str(noise_root.resolve()),
         "train_files": len(train_files),
+        "dev_files": len(dev_files),
         "test_files": len(test_files),
     }
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -72,17 +83,20 @@ def main() -> None:
         default=Path("data/SpeechCommands-background-noise"),
     )
     parser.add_argument("--test-fraction", type=float, default=1 / 3)
+    parser.add_argument("--dev-fraction", type=float, default=1 / 3)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
     summary = prepare_background_noise_manifests(
         args.speechcommands_root,
         args.output,
         test_fraction=args.test_fraction,
+        dev_fraction=args.dev_fraction,
         seed=args.seed,
     )
     print(
         "Prepared file-disjoint SpeechCommands background noise: "
-        f"train={summary['train_files']}, test={summary['test_files']}"
+        f"train={summary['train_files']}, dev={summary['dev_files']}, "
+        f"test={summary['test_files']}"
     )
 
 

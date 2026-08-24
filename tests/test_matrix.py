@@ -7,6 +7,7 @@ from noisegap.experiments.matrix import (
     RunPhase,
     SweepSpec,
     build_matrix,
+    validate_recorded_manifest_split,
 )
 from noisegap.experiments.render import render_config
 
@@ -21,6 +22,7 @@ def _spec() -> SweepSpec:
                 "recorded",
                 Path("noise"),
                 Path("noise/train.csv"),
+                Path("noise/dev.csv"),
                 Path("noise/test.csv"),
             ),
         )
@@ -119,8 +121,8 @@ def test_training_seed_changes_train_but_not_evaluation_corruption() -> None:
     assert config["seed"] == 2
     assert config["noisegap_protocol"]["seed"] == 2
     assert train_parameters["generator_seed"] == 2
-    assert dev_parameters["generator_seed"] == 0
-    assert test_parameters["generator_seed"] == 0
+    assert dev_parameters["generator_seed"] == 1_000_000
+    assert test_parameters["generator_seed"] == 2_000_000
 
 
 def test_recorded_noise_uses_speech_pann_parameters() -> None:
@@ -143,3 +145,18 @@ def test_recorded_noise_uses_speech_pann_parameters() -> None:
     assert parameters["ref"] == 1.0
     assert parameters["amin"] == 1e-10
     assert parameters["top_db"] is None
+
+
+def test_recorded_manifest_split_rejects_dev_test_overlap(tmp_path: Path) -> None:
+    (tmp_path / "a.wav").touch()
+    (tmp_path / "b.wav").touch()
+    (tmp_path / "c.wav").touch()
+    train = tmp_path / "train.csv"
+    dev = tmp_path / "dev.csv"
+    test = tmp_path / "test.csv"
+    train.write_text("path\na.wav\n", encoding="utf-8")
+    dev.write_text("path\nb.wav\n", encoding="utf-8")
+    test.write_text("path\nb.wav\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Noise leakage: dev/test"):
+        validate_recorded_manifest_split(tmp_path, train, dev, test)

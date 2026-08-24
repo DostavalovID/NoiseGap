@@ -10,11 +10,28 @@ from noisegap.training.cli import (
 )
 
 
-def test_provenance_binds_resolved_config_and_protocol() -> None:
+def test_provenance_binds_resolved_config_and_protocol(tmp_path: Path) -> None:
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    for split in ("train", "dev", "test"):
+        (dataset / f"{split}.csv").write_text(
+            f"path,target\n{split}.wav,label\n",
+            encoding="utf-8",
+        )
+    noise = tmp_path / "noise.csv"
+    noise.write_text("path\nnoise.wav\n", encoding="utf-8")
     cfg = OmegaConf.create(
         {
             "value": "${answer}",
             "answer": 42,
+            "dataset": {"path": str(dataset)},
+            "augmentation": {
+                "train": {
+                    "pipeline": [{"RecordedNoise": {"manifest_csv": str(noise)}}]
+                },
+                "dev": None,
+                "test": None,
+            },
             "noisegap_protocol": {
                 "phase": "train",
                 "feature_layout": "channel,time,mel",
@@ -29,6 +46,14 @@ def test_provenance_binds_resolved_config_and_protocol() -> None:
     assert len(provenance["resolved_config_sha256"]) == 64
     assert provenance["python_version"]
     assert provenance["autrainer_version"] == "0.8.1"
+    assert set(provenance["input_metadata"]["dataset_splits"]) == {
+        "train",
+        "dev",
+        "test",
+    }
+    assert provenance["input_metadata"]["noise_manifests"]["train"][0][
+        "sha256"
+    ] == sha256_file(noise)
 
 
 def test_provenance_binds_successful_artifacts(tmp_path: Path) -> None:

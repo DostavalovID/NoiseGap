@@ -11,8 +11,7 @@ def assert_channel_samples(waveform: torch.Tensor) -> None:
     """Validate the canonical waveform layout ``[channel, samples]``."""
     if waveform.ndim != 2:
         raise ValueError(
-            "Expected waveform shaped [channel, samples], "
-            f"got {tuple(waveform.shape)}."
+            f"Expected waveform shaped [channel, samples], got {tuple(waveform.shape)}."
         )
 
 
@@ -64,3 +63,28 @@ def fit_noise_sample_axis(
         return noise[:, start : start + target_samples]
     repeats = math.ceil(target_samples / noise_samples)
     return noise.repeat(1, repeats)[:, :target_samples]
+
+
+def fit_nonzero_noise_sample_axis(
+    noise: torch.Tensor,
+    target_samples: int,
+    generator: torch.Generator,
+    *,
+    max_attempts: int = 32,
+) -> torch.Tensor:
+    """Fit recorded noise while rejecting undefined zero-power crops.
+
+    The source file is kept fixed so files retain uniform sampling weight. Only
+    the crop offset is resampled, using the caller's generator so evaluation
+    remains deterministic per item.
+    """
+    if max_attempts <= 0:
+        raise ValueError("max_attempts must be positive.")
+    for _ in range(max_attempts):
+        fitted = fit_noise_sample_axis(noise, target_samples, generator)
+        if fitted.square().mean() > EPSILON:
+            return fitted
+    raise ValueError(
+        "Could not sample a nonzero-power crop from recorded noise after "
+        f"{max_attempts} attempts."
+    )

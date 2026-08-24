@@ -1,8 +1,56 @@
 """Declarative experiment matrix."""
 
+import csv
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+
+
+def validate_recorded_manifest_split(
+    root: Path,
+    train_manifest: Path,
+    dev_manifest: Path,
+    test_manifest: Path,
+) -> dict[str, int]:
+    """Fail closed on missing, unsafe, duplicated, or cross-split noise paths."""
+    root = root.resolve()
+    split_paths: dict[str, set[Path]] = {}
+    for split, manifest in (
+        ("train", train_manifest),
+        ("dev", dev_manifest),
+        ("test", test_manifest),
+    ):
+        with manifest.open(newline="", encoding="utf-8") as stream:
+            rows = csv.DictReader(stream)
+            if rows.fieldnames is None or "path" not in rows.fieldnames:
+                raise ValueError(
+                    f"Noise {split} manifest must contain a 'path' column."
+                )
+            relative_paths = [Path(row["path"]) for row in rows]
+        if not relative_paths:
+            raise ValueError(f"Noise {split} manifest must not be empty.")
+        unsafe = [
+            path for path in relative_paths if path.is_absolute() or ".." in path.parts
+        ]
+        if unsafe:
+            raise ValueError(f"Noise {split} manifest path escapes root: {unsafe[0]}")
+        if len(relative_paths) != len(set(relative_paths)):
+            raise ValueError(f"Noise {split} manifest contains duplicate paths.")
+        missing = [path for path in relative_paths if not (root / path).is_file()]
+        if missing:
+            raise FileNotFoundError(
+                f"Noise {split} manifest references a missing file: {missing[0]}"
+            )
+        split_paths[split] = set(relative_paths)
+
+    for first, second in (("train", "dev"), ("train", "test"), ("dev", "test")):
+        overlap = split_paths[first] & split_paths[second]
+        if overlap:
+            raise ValueError(
+                f"Noise leakage: {first}/{second} manifests overlap at "
+                f"{sorted(overlap)[0]}."
+            )
+    return {split: len(paths) for split, paths in split_paths.items()}
 
 
 class RunPhase(str, Enum):
@@ -17,6 +65,7 @@ class Domain:
     kind: str
     root: Path | None = None
     train_manifest: Path | None = None
+    dev_manifest: Path | None = None
     test_manifest: Path | None = None
 
     def __post_init__(self) -> None:
@@ -27,9 +76,12 @@ class Domain:
         if self.kind == "recorded" and (
             self.root is None
             or self.train_manifest is None
+            or self.dev_manifest is None
             or self.test_manifest is None
         ):
-            raise ValueError("Recorded domains require root and train/test manifests.")
+            raise ValueError(
+                "Recorded domains require root and train/dev/test manifests."
+            )
 
 
 @dataclass(frozen=True)
