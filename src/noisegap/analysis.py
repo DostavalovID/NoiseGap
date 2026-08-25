@@ -4,6 +4,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,25 @@ def _validate_protocol(record: dict[str, Any], provenance: dict[str, Any]) -> No
         )
 
 
+def _validate_input_metadata(experiment_id: str, provenance: dict[str, Any]) -> None:
+    """Verify that every split/noise manifest still matches its recorded hash."""
+    input_metadata = provenance.get("input_metadata", {})
+    artifacts = list(input_metadata.get("dataset_splits", {}).values())
+    for phase_artifacts in input_metadata.get("noise_manifests", {}).values():
+        artifacts.extend(phase_artifacts)
+    for artifact in artifacts:
+        path = Path(artifact.get("path", ""))
+        expected_hash = artifact.get("sha256")
+        if not path.is_file() or not expected_hash:
+            raise ValueError(
+                f"Input metadata artifact is missing for {experiment_id}: {path}"
+            )
+        if sha256_file(path) != expected_hash:
+            raise ValueError(
+                f"Input metadata hash mismatch for {experiment_id}: {path}"
+            )
+
+
 def summarize_manifest(
     manifest_path: Path,
     output_path: Path,
@@ -57,6 +77,8 @@ def summarize_manifest(
     rows = []
     missing = []
     metric_names: set[str] = set()
+    training_checkpoint_hashes: dict[Path, str] = {}
+    evaluation_checkpoint_claims: list[tuple[str, Path, str]] = []
 
     for record in records:
         result_dir = Path(record["result_dir"])
@@ -76,6 +98,7 @@ def summarize_manifest(
 
         provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
         _validate_protocol(record, provenance)
+        _validate_input_metadata(record["experiment_id"], provenance)
         if not allow_uncommitted and (
             not provenance.get("git_revision")
             or provenance.get("git_dirty") is not False
@@ -92,10 +115,60 @@ def summarize_manifest(
                 f"Resolved config hash mismatch: {record['experiment_id']}"
             )
         artifact_record = provenance.get("artifacts", {}).get("test_holistic")
-        if not artifact_record or artifact_record.get("sha256") != sha256_file(
-            test_artifact
+        if (
+            not artifact_record
+            or Path(artifact_record.get("path", "")).resolve()
+            != test_artifact.resolve()
+            or artifact_record.get("sha256") != sha256_file(test_artifact)
         ):
             raise ValueError(f"Test artifact hash mismatch: {record['experiment_id']}")
+
+        checkpoint_path = Path(record["checkpoint"]).resolve()
+        if record["phase"] == "train":
+            checkpoint_record = provenance.get("artifacts", {}).get(
+                "output_checkpoint"
+            )
+            if not checkpoint_record or not checkpoint_record.get("sha256"):
+                raise ValueError(
+                    "Training checkpoint provenance is missing: "
+                    f"{record['experiment_id']}"
+                )
+            recorded_path = Path(checkpoint_record.get("path", "")).resolve()
+            if recorded_path != checkpoint_path:
+                raise ValueError(
+                    "Training checkpoint path mismatch for "
+                    f"{record['experiment_id']}: {recorded_path} != {checkpoint_path}"
+                )
+            if not checkpoint_path.is_file():
+                raise FileNotFoundError(
+                    f"Training checkpoint is missing: {checkpoint_path}"
+                )
+            actual_hash = sha256_file(checkpoint_path)
+            if checkpoint_record["sha256"] != actual_hash:
+                raise ValueError(
+                    f"Training checkpoint hash mismatch: {record['experiment_id']}"
+                )
+            if checkpoint_path in training_checkpoint_hashes:
+                raise ValueError(
+                    f"Duplicate training checkpoint in manifest: {checkpoint_path}"
+                )
+            training_checkpoint_hashes[checkpoint_path] = actual_hash
+        else:
+            checkpoint_record = provenance.get("input_checkpoint")
+            if not checkpoint_record or not checkpoint_record.get("sha256"):
+                raise ValueError(
+                    "Evaluation checkpoint provenance is missing: "
+                    f"{record['experiment_id']}"
+                )
+            recorded_path = Path(checkpoint_record.get("path", "")).resolve()
+            if recorded_path != checkpoint_path:
+                raise ValueError(
+                    "Evaluation checkpoint path mismatch for "
+                    f"{record['experiment_id']}: {recorded_path} != {checkpoint_path}"
+                )
+            evaluation_checkpoint_claims.append(
+                (record["experiment_id"], checkpoint_path, checkpoint_record["sha256"])
+            )
 
         metrics = yaml.safe_load(test_artifact.read_text(encoding="utf-8"))
         flattened = {
@@ -103,6 +176,16 @@ def summarize_manifest(
             for name, values in metrics.items()
             if isinstance(values, dict) and "all" in values
         }
+        invalid_metrics = {
+            name: value
+            for name, value in flattened.items()
+            if not isinstance(value, (int, float)) or not math.isfinite(float(value))
+        }
+        if invalid_metrics:
+            raise ValueError(
+                f"Non-finite or non-numeric metrics for {record['experiment_id']}: "
+                f"{invalid_metrics}"
+            )
         metric_names.update(flattened)
         input_checkpoint = provenance.get("input_checkpoint", {})
         output_checkpoint = provenance.get("artifacts", {}).get(
@@ -130,6 +213,18 @@ def summarize_manifest(
                 **flattened,
             }
         )
+
+    for experiment_id, checkpoint_path, claimed_hash in evaluation_checkpoint_claims:
+        training_hash = training_checkpoint_hashes.get(checkpoint_path)
+        if training_hash is None:
+            raise ValueError(
+                "Evaluation has no matching validated training checkpoint: "
+                f"{experiment_id} -> {checkpoint_path}"
+            )
+        if claimed_hash != training_hash:
+            raise ValueError(
+                f"Evaluation checkpoint hash mismatch: {experiment_id}"
+            )
 
     if missing and not allow_incomplete:
         raise RuntimeError(

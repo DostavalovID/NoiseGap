@@ -145,6 +145,17 @@ recommended implementation. The default `corrected` mode keeps the canonical
 `[channel,time,mel]` layout, matched PANN parameters, and separate train/dev/test
 noise manifests.
 
+After running separate feature-space outputs for seeds 0, 1, and 2, aggregate
+them without manually concatenating CSV files:
+
+```bash
+uv run noisegap-aggregate-seeds \
+  --input generated/timit-feature-cnn10-article-legacy-seed0/summary.csv \
+          generated/timit-feature-cnn10-article-legacy-seed1/summary.csv \
+          generated/timit-feature-cnn10-article-legacy-seed2/summary.csv \
+  --output generated/timit-feature-cnn10-article-legacy-summary-by-seed.csv
+```
+
 Generated feature-space configs set PyTorch intra-op and inter-op CPU threads to
 one while retaining the article's single-process DataLoader. This removes severe
 small-tensor thread-pool overhead without changing sample order or random-number
