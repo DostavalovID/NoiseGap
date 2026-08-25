@@ -14,12 +14,41 @@ def _augmentation(
     *,
     phase: str,
     training_seed: int,
+    feature_implementation: str,
 ) -> dict:
     if phase not in {"train", "dev", "test"}:
         raise ValueError(f"Unknown augmentation phase: {phase}")
+    if feature_implementation not in {"corrected", "article_legacy"}:
+        raise ValueError(
+            f"Unknown feature implementation: {feature_implementation}"
+        )
     evaluation = phase != "train"
     evaluation_seed = {"dev": 1_000_000, "test": 2_000_000}
-    if domain.kind == "synthetic":
+    if feature_implementation == "article_legacy" and domain.kind == "synthetic":
+        target = "noisegap.augmentations.LegacyArticleSyntheticLogMelNoise"
+        parameters = {
+            "snr": float(snr_db),
+            "noise_type": "StaticGaussian" if phase == "test" else "Gaussian",
+            "generator_seed": training_seed,
+            "p": 1.0,
+        }
+    elif feature_implementation == "article_legacy":
+        target = "noisegap.augmentations.LegacyArticleRecordedLogMelNoise"
+        parameters = {
+            "noise_dir": str(domain.root),
+            "noise_csv": str(
+                domain.test_manifest if phase == "test" else domain.train_manifest
+            ),
+            "snr_db": float(snr_db),
+            "sample_rate": 16000,
+            "n_fft": 512,
+            "hop_length": 160,
+            "n_mels": 64,
+            "noise_type": None,
+            "generator_seed": training_seed,
+            "p": 1.0,
+        }
+    elif domain.kind == "synthetic":
         target = "noisegap.augmentations.SyntheticLogMelNoise"
         parameters: dict[str, Any] = {
             "snr_db": float(snr_db),
@@ -64,6 +93,7 @@ def render_config(
     results_dir: Path,
     base_config: str = "noisegap_base",
     seed: int = 0,
+    feature_implementation: str = "corrected",
 ) -> dict:
     """Render one config with explicit train/dev/test semantics."""
     if not base_config or "/" in base_config or "\\" in base_config:
@@ -75,18 +105,21 @@ def render_config(
         run.train_snr_db,
         phase="train",
         training_seed=seed,
+        feature_implementation=feature_implementation,
     )
     test = _augmentation(
         run.test_domain,
         run.test_snr_db,
         phase="test",
         training_seed=seed,
+        feature_implementation=feature_implementation,
     )
     dev = _augmentation(
         run.train_domain,
         run.train_snr_db,
         phase="dev",
         training_seed=seed,
+        feature_implementation=feature_implementation,
     )
     config: dict[str, Any] = {
         "defaults": [base_config, "_self_"],
@@ -101,11 +134,14 @@ def render_config(
         "seed": seed,
         "batch_size": 64,
         "learning_rate": 0.001,
+        "torch_num_threads": 1,
+        "torch_num_interop_threads": 1,
         "noisegap_protocol": {
             "phase": run.phase.value,
             "seed": seed,
             "feature_layout": "channel,time,mel",
             "corruption_space": "log_mel_power",
+            "feature_implementation": feature_implementation,
             "snr_definition": (
                 "mean_signal_power_over_mean_noise_power_on_nonzero_frames"
             ),
@@ -119,6 +155,11 @@ def render_config(
             "checkpoint_selection_snr_db": run.train_snr_db,
             "dev_noise_seed": 1_000_000,
             "test_noise_seed": 2_000_000,
+            "runtime": {
+                "torch_num_threads": 1,
+                "torch_num_interop_threads": 1,
+                "loader_workers": 0,
+            },
         },
         "augmentation": {
             "id": (
@@ -130,6 +171,21 @@ def render_config(
             "test": test,
         },
     }
+    if feature_implementation == "article_legacy":
+        config["noisegap_protocol"].update(
+            {
+                "historical_source_revision": (
+                    "f46af323af907c9e7425364974a7975474d17e2f"
+                ),
+                "gaussian_power_field": "abs_randn_scaled_by_mean",
+                "recorded_noise_frontend": "torchaudio_MelSpectrogram_defaults",
+                "recorded_noise_decoder": "audiofile_pcm_compatibility_adapter",
+                "recorded_noise_axis_behavior": "legacy_64_frame_resize",
+                "dev_recorded_noise_manifest": "train_manifest",
+                "dev_noise_seed": seed,
+                "test_noise_seed": seed,
+            }
+        )
     if run.phase is RunPhase.EVALUATE:
         config["model"] = {
             "model_checkpoint": (

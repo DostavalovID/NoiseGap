@@ -58,6 +58,13 @@ def test_rendered_protocol_is_explicit() -> None:
         "mean_signal_power_over_mean_noise_power_on_nonzero_frames"
     )
     assert protocol["padding_policy"] == "preserve_zero_frames"
+    assert protocol["runtime"] == {
+        "torch_num_threads": 1,
+        "torch_num_interop_threads": 1,
+        "loader_workers": 0,
+    }
+    assert config["torch_num_threads"] == 1
+    assert config["torch_num_interop_threads"] == 1
     assert config["augmentation"]["train"] is None
     assert config["augmentation"]["dev"] is None
     assert config["model"]["model_checkpoint"] == (
@@ -145,6 +152,43 @@ def test_recorded_noise_uses_speech_pann_parameters() -> None:
     assert parameters["ref"] == 1.0
     assert parameters["amin"] == 1e-10
     assert parameters["top_db"] is None
+
+
+def test_article_legacy_config_records_exact_historical_behavior() -> None:
+    run = next(
+        run
+        for run in build_matrix(_spec())
+        if run.phase is RunPhase.TRAIN and run.train_domain.kind == "recorded"
+    )
+    config = render_config(
+        run,
+        results_dir=Path("results"),
+        feature_implementation="article_legacy",
+    )
+
+    train_pipeline = config["augmentation"]["train"]["pipeline"][0]
+    dev_pipeline = config["augmentation"]["dev"]["pipeline"][0]
+    assert "noisegap.augmentations.LegacyArticleRecordedLogMelNoise" in train_pipeline
+    assert dev_pipeline[
+        "noisegap.augmentations.LegacyArticleRecordedLogMelNoise"
+    ]["noise_csv"] == "noise/train.csv"
+    assert config["noisegap_protocol"]["recorded_noise_axis_behavior"] == (
+        "legacy_64_frame_resize"
+    )
+
+
+def test_article_legacy_gaussian_test_is_static_per_item() -> None:
+    run = next(run for run in build_matrix(_spec()) if run.phase is RunPhase.EVALUATE)
+    config = render_config(
+        run,
+        results_dir=Path("results"),
+        feature_implementation="article_legacy",
+    )
+    parameters = config["augmentation"]["test"]["pipeline"][0][
+        "noisegap.augmentations.LegacyArticleSyntheticLogMelNoise"
+    ]
+    assert parameters["noise_type"] == "StaticGaussian"
+    assert parameters["generator_seed"] == 0
 
 
 def test_recorded_manifest_split_rejects_dev_test_overlap(tmp_path: Path) -> None:

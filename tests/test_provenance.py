@@ -29,7 +29,9 @@ def test_provenance_binds_resolved_config_and_protocol(tmp_path: Path) -> None:
                 "train": {
                     "pipeline": [{"RecordedNoise": {"manifest_csv": str(noise)}}]
                 },
-                "dev": None,
+                "dev": {
+                    "pipeline": [{"LegacyRecordedNoise": {"noise_csv": str(noise)}}]
+                },
                 "test": None,
             },
             "noisegap_protocol": {
@@ -52,6 +54,9 @@ def test_provenance_binds_resolved_config_and_protocol(tmp_path: Path) -> None:
         "test",
     }
     assert provenance["input_metadata"]["noise_manifests"]["train"][0][
+        "sha256"
+    ] == sha256_file(noise)
+    assert provenance["input_metadata"]["noise_manifests"]["dev"][0][
         "sha256"
     ] == sha256_file(noise)
 

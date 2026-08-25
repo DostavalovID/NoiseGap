@@ -7,7 +7,12 @@ import pytest
 import torch
 from autrainer.core.structs import DataItem
 
-from noisegap.augmentations import RecordedLogMelNoise, SyntheticLogMelNoise
+from noisegap.augmentations import (
+    LegacyArticleRecordedLogMelNoise,
+    LegacyArticleSyntheticLogMelNoise,
+    RecordedLogMelNoise,
+    SyntheticLogMelNoise,
+)
 
 
 def test_synthetic_evaluation_is_stable_per_item() -> None:
@@ -22,6 +27,66 @@ def test_synthetic_evaluation_is_stable_per_item() -> None:
     augmentation.apply(first)
     augmentation.apply(second)
     assert torch.equal(first.features, second.features)
+
+
+def test_legacy_article_synthetic_uses_abs_gaussian_power_field() -> None:
+    features = torch.full((1, 3, 4), -20.0)
+    item = DataItem(features.clone(), 0, 7)
+    augmentation = LegacyArticleSyntheticLogMelNoise(
+        snr=0,
+        noise_type="Gaussian",
+        generator_seed=5,
+    )
+
+    generator = torch.Generator().manual_seed(5)
+    signal_linear = 10 ** (features / 10)
+    noise_raw = torch.abs(torch.randn(features.shape, generator=generator))
+    noise_linear = noise_raw * (signal_linear.mean() / noise_raw.mean())
+    expected = 10 * torch.log10(signal_linear + noise_linear + 1e-9)
+
+    augmentation.apply(item)
+    assert torch.equal(item.features, expected)
+
+
+def test_legacy_article_recorded_preserves_historical_axis_resize(
+    tmp_path: Path,
+) -> None:
+    noise_file = tmp_path / "noise.wav"
+    noise_file.touch()
+    augmentation = LegacyArticleRecordedLogMelNoise(
+        str(tmp_path),
+        snr_db=0,
+        generator_seed=0,
+    )
+    augmentation._load_noise_spectrogram = lambda _: torch.full((1, 64, 100), -30.0)
+    item = DataItem(torch.full((1, 30, 64), -20.0), 0, 0)
+
+    augmentation.apply(item)
+
+    assert item.features.shape == (1, 30, 64)
+
+
+def test_legacy_article_recorded_decodes_pcm_without_torchcodec(
+    tmp_path: Path,
+) -> None:
+    noise_file = tmp_path / "noise.wav"
+    samples = [
+        int(12000 * math.sin(2 * math.pi * 440 * index / 16000))
+        for index in range(16000)
+    ]
+    with wave.open(str(noise_file), "wb") as stream:
+        stream.setnchannels(1)
+        stream.setsampwidth(2)
+        stream.setframerate(16000)
+        stream.writeframes(struct.pack(f"<{len(samples)}h", *samples))
+
+    augmentation = LegacyArticleRecordedLogMelNoise(str(tmp_path), snr_db=0)
+    noise_db = augmentation._load_noise_spectrogram(str(noise_file))
+
+    assert noise_db.shape[0] == 1
+    assert noise_db.shape[1] == 64
+    assert noise_db.shape[2] > 64
+    assert torch.isfinite(noise_db).all()
 
 
 def test_recorded_noise_requires_matching_mel_axis(tmp_path: Path) -> None:

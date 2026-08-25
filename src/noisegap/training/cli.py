@@ -18,6 +18,22 @@ from noisegap import __version__
 from .trainer import NoiseGapTrainer
 
 
+def configure_torch_runtime(cfg: DictConfig) -> dict[str, int]:
+    """Apply an explicit CPU thread budget before dataset construction."""
+    num_threads = int(cfg.get("torch_num_threads", torch.get_num_threads()))
+    num_interop_threads = int(
+        cfg.get("torch_num_interop_threads", torch.get_num_interop_threads())
+    )
+    if num_threads <= 0 or num_interop_threads <= 0:
+        raise ValueError("Torch thread counts must be positive.")
+    torch.set_num_threads(num_threads)
+    torch.set_num_interop_threads(num_interop_threads)
+    return {
+        "torch_num_threads": torch.get_num_threads(),
+        "torch_num_interop_threads": torch.get_num_interop_threads(),
+    }
+
+
 def sha256_file(path: Path) -> str:
     """Hash an artifact without loading the full file into memory."""
     digest = hashlib.sha256()
@@ -66,7 +82,7 @@ def _input_metadata(cfg: DictConfig) -> dict:
         def collect_manifests(value: object, output: list[str]) -> None:
             if isinstance(value, dict):
                 for key, nested in value.items():
-                    if key == "manifest_csv" and nested is not None:
+                    if key in {"manifest_csv", "noise_csv"} and nested is not None:
                         output.append(str(nested))
                     else:
                         collect_manifests(nested, output)
@@ -106,6 +122,10 @@ def build_provenance(cfg: DictConfig) -> dict:
         "torch_version": torch.__version__,
         "torchaudio_version": torchaudio.__version__,
         "python_version": sys.version.split()[0],
+        "torch_runtime": {
+            "torch_num_threads": torch.get_num_threads(),
+            "torch_num_interop_threads": torch.get_num_interop_threads(),
+        },
         "git_revision": revision,
         "git_dirty": None if revision is None or status is None else bool(status),
         "resolved_config_sha256": hashlib.sha256(
@@ -165,6 +185,7 @@ def main() -> None:
     def run(cfg: DictConfig) -> float:
         OmegaConf.set_struct(cfg, False)
         OmegaConf.resolve(cfg)
+        configure_torch_runtime(cfg)
         output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
         completed = os.path.join(output_dir, "_test", "test_holistic.yaml")
         if os.path.isfile(completed):

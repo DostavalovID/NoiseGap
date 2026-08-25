@@ -122,6 +122,34 @@ These commands reproduce the article's feature-space question. The separate
 `noisegap-generate-speechcommands` command remains the CNN10 waveform-level
 confound-control experiment.
 
+For a historical reproduction of the published CNN10 result, including the
+article implementation rather than the corrected feature mixer, add:
+
+```bash
+uv run noisegap-generate \
+  --base-config noisegap_article_timit \
+  --feature-implementation article_legacy \
+  --seed 0 \
+  --output generated/timit-feature-cnn10-article-legacy-seed0 \
+  --recorded-root data/AudioSet-Balanced-Noise \
+  --recorded-train-csv data/AudioSet-Balanced-Noise/train.csv \
+  --recorded-dev-csv data/AudioSet-Balanced-Noise/dev.csv \
+  --recorded-test-csv data/AudioSet-Balanced-Noise/test.csv
+```
+
+This compatibility mode deliberately retains the historical `abs(randn)`
+Gaussian power field, torchaudio MelSpectrogram defaults for recorded noise,
+the legacy 64-frame resize caused by the old time/mel interpretation, and the
+training-noise manifest for development. It is a reproduction control, not the
+recommended implementation. The default `corrected` mode keeps the canonical
+`[channel,time,mel]` layout, matched PANN parameters, and separate train/dev/test
+noise manifests.
+
+Generated feature-space configs set PyTorch intra-op and inter-op CPU threads to
+one while retaining the article's single-process DataLoader. This removes severe
+small-tensor thread-pool overhead without changing sample order or random-number
+streams; the effective values are recorded in run provenance.
+
 For the article-compatible TIMIT split with CNN10 waveform corruption, keep the
 same two noise domains, six train/test SNRs, optimizer, learning rate, 15-epoch
 budget, and three independent seeds. The only intended methodological change is

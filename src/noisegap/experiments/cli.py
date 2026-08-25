@@ -25,6 +25,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--iterations", type=int, default=15)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
+        "--feature-implementation",
+        choices=("corrected", "article_legacy"),
+        default="corrected",
+        help=(
+            "Use corrected feature mixing or reproduce the historical article "
+            "augmentation implementation, including its recorded-noise axis behavior."
+        ),
+    )
+    parser.add_argument(
         "--base-config",
         default="noisegap_base",
         help=(
@@ -85,6 +94,7 @@ def main() -> None:
                 results_dir=results_dir,
                 base_config=args.base_config,
                 seed=args.seed,
+                feature_implementation=args.feature_implementation,
             ),
         )
         record = asdict(run)
@@ -92,6 +102,7 @@ def main() -> None:
         record["experiment_id"] = run.experiment_id
         record["base_config"] = args.base_config
         record["seed"] = args.seed
+        record["feature_implementation"] = args.feature_implementation
         record["train_domain"] = run.train_domain.label
         record["test_domain"] = run.test_domain.label
         record["config"] = str(Path("configs") / config_name)
