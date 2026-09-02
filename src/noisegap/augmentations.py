@@ -15,7 +15,13 @@ from autrainer.transforms import PannMel
 from torchaudio import functional as audio_functional
 from torchaudio import transforms as audio_transforms
 
-from .log_mel import EPSILON, db_to_power, fit_noise_time_axis, mix_power_at_snr
+from .log_mel import (
+    EPSILON,
+    db_to_power,
+    fit_noise_time_axis,
+    mix_power_at_snr,
+    valid_frame_mask,
+)
 from .waveform import fit_nonzero_noise_sample_axis, mix_waveform_at_snr
 
 
@@ -63,6 +69,8 @@ class SyntheticLogMelNoise(_SeededNoise):
         order: int = 0,
         p: float = 1.0,
         generator_seed: Optional[int] = None,
+        padding_value_db: float = 0.0,
+        padding_tolerance_db: float = 0.0,
     ) -> None:
         super().__init__(
             deterministic_per_item=deterministic_per_item,
@@ -71,6 +79,8 @@ class SyntheticLogMelNoise(_SeededNoise):
             generator_seed=generator_seed,
         )
         self.snr_db = snr_db
+        self.padding_value_db = padding_value_db
+        self.padding_tolerance_db = padding_tolerance_db
 
     def apply(self, item: AbstractDataItem) -> AbstractDataItem:
         generator = self._generator_for(item)
@@ -85,6 +95,11 @@ class SyntheticLogMelNoise(_SeededNoise):
             item.features,
             noise_power,
             self.snr_db,
+            frames=valid_frame_mask(
+                item.features,
+                padding_value_db=self.padding_value_db,
+                padding_tolerance_db=self.padding_tolerance_db,
+            ),
         )
         return item
 
@@ -175,6 +190,8 @@ class LegacyArticleRecordedLogMelNoise(AbstractAugmentation):
         order: int = 0,
         p: float = 1.0,
         generator_seed: Optional[int] = None,
+        padding_value_db: float = 0.0,
+        padding_tolerance_db: float = 0.0,
     ) -> None:
         super().__init__(order=order, p=p, generator_seed=generator_seed)
         self.noise_dir = noise_dir
@@ -333,6 +350,8 @@ class RecordedLogMelNoise(_SeededNoise):
         order: int = 0,
         p: float = 1.0,
         generator_seed: Optional[int] = None,
+        padding_value_db: float = 0.0,
+        padding_tolerance_db: float = 0.0,
     ) -> None:
         super().__init__(
             deterministic_per_item=deterministic_per_item,
@@ -354,6 +373,8 @@ class RecordedLogMelNoise(_SeededNoise):
         self.top_db = top_db
         self.manifest_csv = manifest_csv
         self.cache_size = cache_size
+        self.padding_value_db = padding_value_db
+        self.padding_tolerance_db = padding_tolerance_db
         self.noise_files = self._discover_noise_files()
         self._cache: OrderedDict[Path, torch.Tensor] = OrderedDict()
         self._pann_mel = PannMel(
@@ -463,6 +484,11 @@ class RecordedLogMelNoise(_SeededNoise):
             item.features,
             noise_power,
             self.snr_db,
+            frames=valid_frame_mask(
+                item.features,
+                padding_value_db=self.padding_value_db,
+                padding_tolerance_db=self.padding_tolerance_db,
+            ),
         )
         return item
 
@@ -479,6 +505,7 @@ class RecordedWaveformNoise(_SeededNoise):
         deterministic_per_item: bool = False,
         cache_size: int = 16,
         max_crop_attempts: int = 32,
+        min_crop_rms_ratio: float = 0.0,
         order: int = -97,
         p: float = 1.0,
         generator_seed: Optional[int] = None,
@@ -498,6 +525,9 @@ class RecordedWaveformNoise(_SeededNoise):
         if max_crop_attempts <= 0:
             raise ValueError("max_crop_attempts must be positive.")
         self.max_crop_attempts = max_crop_attempts
+        if not 0 <= min_crop_rms_ratio <= 1:
+            raise ValueError("min_crop_rms_ratio must be in [0, 1].")
+        self.min_crop_rms_ratio = min_crop_rms_ratio
         self.noise_files = self._discover_noise_files()
         self._cache: OrderedDict[Path, torch.Tensor] = OrderedDict()
 
@@ -575,6 +605,7 @@ class RecordedWaveformNoise(_SeededNoise):
             item.features.shape[-1],
             generator,
             max_attempts=self.max_crop_attempts,
+            min_crop_rms_ratio=self.min_crop_rms_ratio,
         ).to(device=item.features.device, dtype=item.features.dtype)
         item.features = mix_waveform_at_snr(item.features, noise, self.snr_db)
         return item

@@ -20,10 +20,20 @@ def assert_channel_time_mel(features: torch.Tensor) -> None:
         )
 
 
-def valid_frame_mask(features_db: torch.Tensor) -> torch.Tensor:
-    """Return ``[channel, time]`` mask for zero-padded log-Mel frames."""
+def valid_frame_mask(
+    features_db: torch.Tensor,
+    *,
+    padding_value_db: float = 0.0,
+    padding_tolerance_db: float = 0.0,
+) -> torch.Tensor:
+    """Return ``[channel, time]`` mask excluding a known padding value."""
     assert_channel_time_mel(features_db)
-    return features_db.abs().sum(dim=-1) > 0
+    if not math.isfinite(padding_value_db):
+        raise ValueError("padding_value_db must be finite.")
+    if not math.isfinite(padding_tolerance_db) or padding_tolerance_db < 0:
+        raise ValueError("padding_tolerance_db must be finite and non-negative.")
+    difference = (features_db - padding_value_db).abs()
+    return difference.amax(dim=-1) > padding_tolerance_db
 
 
 def db_to_power(features_db: torch.Tensor) -> torch.Tensor:

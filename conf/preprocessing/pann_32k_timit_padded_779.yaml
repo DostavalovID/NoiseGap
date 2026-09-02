@@ -1,0 +1,26 @@
+file_handler:
+  autrainer.datasets.utils.AudioFileHandler:
+    target_sample_rate: 16000
+
+pipeline:
+  - autrainer.transforms.StereoToMono
+  # Match the waveform experiment exactly: pad at 16 kHz before resampling.
+  - autrainer.transforms.Expand:
+      size: 124621
+      axis: -1
+      order: -100
+  - autrainer.transforms.Resample:
+      current_sr: 16000
+      target_sr: 32000
+      order: -95
+  - autrainer.transforms.PannMel:
+      sample_rate: 32000
+      window_size: 1024
+      hop_size: 320
+      mel_bins: 64
+      fmin: 50
+      fmax: 14000
+      ref: 1.0
+      amin: 1.0e-10
+      top_db: null
+      order: -90

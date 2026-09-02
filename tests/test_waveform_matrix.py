@@ -11,6 +11,7 @@ from noisegap.experiments.waveform_matrix import (
     build_waveform_matrix,
 )
 from noisegap.experiments.waveform_render import render_waveform_config
+from noisegap.seeding import training_augmentation_seed
 
 
 def _spec() -> WaveformSweepSpec:
@@ -91,6 +92,8 @@ def test_recorded_dev_and_test_use_disjoint_manifests_and_seeds() -> None:
     assert test["manifest_csv"] == "noise/test.csv"
     assert dev["generator_seed"] == 1_000_000
     assert test["generator_seed"] == 2_000_000
+    assert dev["min_crop_rms_ratio"] == 0.1
+    assert test["min_crop_rms_ratio"] == 0.1
 
 
 def test_model_seed_and_waveform_contract_are_recorded() -> None:
@@ -110,6 +113,8 @@ def test_model_seed_and_waveform_contract_are_recorded() -> None:
     assert protocol["corruption_space"] == "waveform_amplitude"
     assert protocol["frontend_position"] == "after_corruption"
     assert protocol["clipping_policy"] == "no_clipping"
+    assert protocol["train_augmentation_seed"] == training_augmentation_seed(2)
+    assert protocol["recorded_noise_min_crop_rms_ratio"] == 0.1
 
 
 def test_cnn10_composed_transform_order_keeps_noise_before_frontend() -> None:

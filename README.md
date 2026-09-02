@@ -235,6 +235,37 @@ fixed corruption seeds across all model-training seeds, so model variance is not
 confounded with different evaluation noise and checkpoint selection does not
 reuse the final-test realization.
 
+### Matched 32 kHz feature-space control
+
+The corrected feature-space control caches only the deterministic clean
+frontend. It uses the same legacy TIMIT metadata, 16 kHz waveform padding,
+32 kHz resampling, and PANN parameters as the waveform experiment. Noise is then
+mixed in log-Mel power while frames at the PANN silence floor remain unchanged.
+
+```bash
+uv run autrainer preprocess \
+  --config-dir conf \
+  --config-name noisegap_article_timit_feature_matched \
+  --num-workers 8
+
+uv run noisegap-generate \
+  --base-config noisegap_article_timit_feature_matched \
+  --feature-implementation matched_32k \
+  --seed 0 \
+  --output generated/timit-feature-cnn10-matched-seed0 \
+  --recorded-root data/AudioSet-Balanced-Noise \
+  --recorded-train-csv data/AudioSet-Balanced-Noise/train.csv \
+  --recorded-dev-csv data/AudioSet-Balanced-Noise/dev.csv \
+  --recorded-test-csv data/AudioSet-Balanced-Noise/test.csv
+```
+
+New corrected runs select checkpoints by development UAR. Their training-noise
+generators use a reserved seed range per model-training seed; workers add only
+their worker ID inside that range. New waveform runs reject recorded-noise crops
+whose RMS is below 10% of the complete source-file RMS. The historical
+article-compatible feature reproduction keeps its original Accuracy checkpoint
+selection and random-number behavior.
+
 Recorded-noise WAV files are likewise user-supplied and are never downloaded or
 redistributed. Train, development, and test use separate manifests so checkpoint
 selection never observes final-test noise files. Each CSV must contain one unique

@@ -1,7 +1,11 @@
 import pytest
 import torch
 
-from noisegap.log_mel import fit_noise_time_axis, mix_power_at_snr
+from noisegap.log_mel import (
+    fit_noise_time_axis,
+    mix_power_at_snr,
+    valid_frame_mask,
+)
 
 
 def _measured_snr(
@@ -41,3 +45,16 @@ def test_fit_noise_changes_time_only() -> None:
         torch.Generator().manual_seed(3),
     )
     assert fitted.shape == (1, 45, 64)
+
+
+def test_valid_frame_mask_supports_pann_floor_padding() -> None:
+    features = torch.full((1, 5, 3), -40.0)
+    features[:, 3:, :] = -100.0
+
+    mask = valid_frame_mask(
+        features,
+        padding_value_db=-100.0,
+        padding_tolerance_db=0.01,
+    )
+
+    assert mask.tolist() == [[True, True, True, False, False]]

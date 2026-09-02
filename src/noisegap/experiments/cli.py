@@ -26,7 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--feature-implementation",
-        choices=("corrected", "article_legacy"),
+        choices=("corrected", "article_legacy", "matched_32k"),
         default="corrected",
         help=(
             "Use corrected feature mixing or reproduce the historical article "
@@ -39,6 +39,22 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Hydra base config used by every generated run. Use an article-specific "
             "base to keep dataset and frontend provenance explicit."
+        ),
+    )
+    parser.add_argument(
+        "--loader-workers",
+        type=int,
+        help=(
+            "DataLoader workers. Defaults to 4 for matched_32k and 0 for "
+            "the other feature implementations."
+        ),
+    )
+    parser.add_argument(
+        "--tracking-metric",
+        choices=("accuracy", "uar", "f1"),
+        help=(
+            "Checkpoint-selection metric. Defaults to UAR for matched_32k "
+            "and Accuracy for reproduction modes."
         ),
     )
     return parser
@@ -64,6 +80,22 @@ def main() -> None:
         dev_manifest,
         test_manifest,
     )
+    loader_workers = args.loader_workers
+    if loader_workers is None:
+        loader_workers = 4 if args.feature_implementation == "matched_32k" else 0
+    if loader_workers < 0:
+        raise ValueError("loader_workers must be non-negative.")
+    metric_names = {
+        "accuracy": "autrainer.metrics.Accuracy",
+        "uar": "autrainer.metrics.UAR",
+        "f1": "autrainer.metrics.F1",
+    }
+    tracking_metric_key = args.tracking_metric
+    if tracking_metric_key is None:
+        tracking_metric_key = (
+            "uar" if args.feature_implementation == "matched_32k" else "accuracy"
+        )
+    tracking_metric = metric_names[tracking_metric_key]
     spec = SweepSpec(
         domains=(
             Domain("S", "SyntheticLogMel", "synthetic"),
@@ -95,6 +127,8 @@ def main() -> None:
                 base_config=args.base_config,
                 seed=args.seed,
                 feature_implementation=args.feature_implementation,
+                loader_workers=loader_workers,
+                tracking_metric=tracking_metric,
             ),
         )
         record = asdict(run)
@@ -103,6 +137,8 @@ def main() -> None:
         record["base_config"] = args.base_config
         record["seed"] = args.seed
         record["feature_implementation"] = args.feature_implementation
+        record["loader_workers"] = loader_workers
+        record["tracking_metric"] = tracking_metric
         record["train_domain"] = run.train_domain.label
         record["test_domain"] = run.test_domain.label
         record["config"] = str(Path("configs") / config_name)

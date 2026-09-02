@@ -5,7 +5,13 @@ from typing import Any
 
 import yaml
 
+from ..seeding import (
+    TRAIN_AUGMENTATION_SEED_STRIDE,
+    training_augmentation_seed,
+)
 from .matrix import Domain, RunPhase, RunSpec
+
+_FEATURE_IMPLEMENTATIONS = {"corrected", "article_legacy", "matched_32k"}
 
 
 def _augmentation(
@@ -18,12 +24,17 @@ def _augmentation(
 ) -> dict:
     if phase not in {"train", "dev", "test"}:
         raise ValueError(f"Unknown augmentation phase: {phase}")
-    if feature_implementation not in {"corrected", "article_legacy"}:
+    if feature_implementation not in _FEATURE_IMPLEMENTATIONS:
         raise ValueError(
             f"Unknown feature implementation: {feature_implementation}"
         )
     evaluation = phase != "train"
     evaluation_seed = {"dev": 1_000_000, "test": 2_000_000}
+    train_noise_seed = (
+        training_seed
+        if feature_implementation == "article_legacy"
+        else training_augmentation_seed(training_seed)
+    )
     if feature_implementation == "article_legacy" and domain.kind == "synthetic":
         target = "noisegap.augmentations.LegacyArticleSyntheticLogMelNoise"
         parameters = {
@@ -53,9 +64,18 @@ def _augmentation(
         parameters: dict[str, Any] = {
             "snr_db": float(snr_db),
             "deterministic_per_item": evaluation,
-            "generator_seed": (evaluation_seed[phase] if evaluation else training_seed),
+            "generator_seed": (
+                evaluation_seed[phase] if evaluation else train_noise_seed
+            ),
             "p": 1.0,
         }
+        if feature_implementation == "matched_32k":
+            parameters.update(
+                {
+                    "padding_value_db": -100.0,
+                    "padding_tolerance_db": 0.01,
+                }
+            )
     else:
         manifest = {
             "train": domain.train_manifest,
@@ -67,19 +87,28 @@ def _augmentation(
             "noise_root": str(domain.root),
             "manifest_csv": str(manifest),
             "snr_db": float(snr_db),
-            "sample_rate": 16000,
-            "window_size": 512,
-            "hop_size": 160,
+            "sample_rate": 32000 if feature_implementation == "matched_32k" else 16000,
+            "window_size": 1024 if feature_implementation == "matched_32k" else 512,
+            "hop_size": 320 if feature_implementation == "matched_32k" else 160,
             "mel_bins": 64,
             "fmin": 50,
-            "fmax": 8000,
+            "fmax": 14000 if feature_implementation == "matched_32k" else 8000,
             "ref": 1.0,
             "amin": 1e-10,
             "top_db": None,
             "deterministic_per_item": evaluation,
-            "generator_seed": (evaluation_seed[phase] if evaluation else training_seed),
+            "generator_seed": (
+                evaluation_seed[phase] if evaluation else train_noise_seed
+            ),
             "p": 1.0,
         }
+        if feature_implementation == "matched_32k":
+            parameters.update(
+                {
+                    "padding_value_db": -100.0,
+                    "padding_tolerance_db": 0.01,
+                }
+            )
     return {
         "_target_": "autrainer.augmentations.AugmentationPipeline",
         "id": f"{domain.label}({snr_db}dB)",
@@ -94,12 +123,22 @@ def render_config(
     base_config: str = "noisegap_base",
     seed: int = 0,
     feature_implementation: str = "corrected",
+    loader_workers: int = 0,
+    tracking_metric: str = "autrainer.metrics.Accuracy",
 ) -> dict:
     """Render one config with explicit train/dev/test semantics."""
     if not base_config or "/" in base_config or "\\" in base_config:
         raise ValueError("base_config must be a non-empty Hydra config name.")
     if seed < 0:
         raise ValueError("seed must be non-negative.")
+    if loader_workers < 0:
+        raise ValueError("loader_workers must be non-negative.")
+    if tracking_metric not in {
+        "autrainer.metrics.Accuracy",
+        "autrainer.metrics.UAR",
+        "autrainer.metrics.F1",
+    }:
+        raise ValueError(f"Unsupported tracking_metric: {tracking_metric}")
     train = _augmentation(
         run.train_domain,
         run.train_snr_db,
@@ -155,10 +194,20 @@ def render_config(
             "checkpoint_selection_snr_db": run.train_snr_db,
             "dev_noise_seed": 1_000_000,
             "test_noise_seed": 2_000_000,
+            "train_augmentation_seed": (
+                seed
+                if feature_implementation == "article_legacy"
+                else training_augmentation_seed(seed)
+            ),
+            "train_augmentation_seed_stride_between_runs": (
+                TRAIN_AUGMENTATION_SEED_STRIDE
+            ),
+            "train_worker_seed_offset_policy": "base_plus_worker_id",
+            "checkpoint_selection_metric": tracking_metric,
             "runtime": {
                 "torch_num_threads": 1,
                 "torch_num_interop_threads": 1,
-                "loader_workers": 0,
+                "loader_workers": loader_workers,
             },
         },
         "augmentation": {
@@ -171,6 +220,34 @@ def render_config(
             "test": test,
         },
     }
+    loader_kwargs: dict[str, Any] = {"num_workers": loader_workers}
+    if loader_workers > 0:
+        loader_kwargs.update(
+            {
+                "pin_memory": True,
+                "prefetch_factor": 2,
+            }
+        )
+    config["dataset"] = {
+        "train_loader_kwargs": dict(loader_kwargs),
+        "dev_loader_kwargs": dict(loader_kwargs),
+        "test_loader_kwargs": dict(loader_kwargs),
+        "tracking_metric": tracking_metric,
+    }
+    if feature_implementation == "matched_32k":
+        config["noisegap_protocol"].update(
+            {
+                "speech_feature_extractor": (
+                    "autrainer:PannMel(32k,1024,320,64,50,14000)"
+                ),
+                "speech_waveform_padding_samples_16k": 124621,
+                "speech_waveform_padding_value": 0.0,
+                "feature_padding_value_db": -100.0,
+                "feature_padding_tolerance_db": 0.01,
+                "padding_policy": "preserve_pann_floor_frames",
+                "frontend_cache": "precomputed_clean_features",
+            }
+        )
     if feature_implementation == "article_legacy":
         config["noisegap_protocol"].update(
             {

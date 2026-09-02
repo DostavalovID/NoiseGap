@@ -1,0 +1,22 @@
+id: TIMIT-sentencetype-article-feature-matched-32k
+_target_: noisegap.datasets.TimitSentenceType
+
+# Same metadata and clean-waveform frontend as the waveform experiment. The
+# frontend output is cached once; only feature-space corruption stays online.
+path: data/TIMIT-sentence-type-article
+features_subdir: pann_32k_timit_padded_779
+index_column: path
+target_column: sentence_type
+file_type: npy
+file_handler: autrainer.datasets.utils.NumpyFileHandler
+
+criterion: autrainer.criterions.BalancedCrossEntropyLoss
+metrics:
+  - autrainer.metrics.Accuracy
+  - autrainer.metrics.UAR
+  - autrainer.metrics.F1
+tracking_metric: autrainer.metrics.UAR
+
+transform:
+  type: grayscale
+  base: []

@@ -10,6 +10,7 @@ from noisegap.experiments.matrix import (
     validate_recorded_manifest_split,
 )
 from noisegap.experiments.render import render_config
+from noisegap.seeding import training_augmentation_seed
 
 
 def _spec() -> SweepSpec:
@@ -127,7 +128,7 @@ def test_training_seed_changes_train_but_not_evaluation_corruption() -> None:
 
     assert config["seed"] == 2
     assert config["noisegap_protocol"]["seed"] == 2
-    assert train_parameters["generator_seed"] == 2
+    assert train_parameters["generator_seed"] == training_augmentation_seed(2)
     assert dev_parameters["generator_seed"] == 1_000_000
     assert test_parameters["generator_seed"] == 2_000_000
 
@@ -152,6 +153,38 @@ def test_recorded_noise_uses_speech_pann_parameters() -> None:
     assert parameters["ref"] == 1.0
     assert parameters["amin"] == 1e-10
     assert parameters["top_db"] is None
+
+
+def test_matched_feature_config_uses_waveform_frontend_and_padding() -> None:
+    run = next(
+        run
+        for run in build_matrix(_spec())
+        if run.phase is RunPhase.TRAIN and run.train_domain.kind == "recorded"
+    )
+    config = render_config(
+        run,
+        results_dir=Path("results"),
+        base_config="noisegap_article_timit_feature_matched",
+        seed=2,
+        feature_implementation="matched_32k",
+        loader_workers=4,
+    )
+    parameters = config["augmentation"]["train"]["pipeline"][0][
+        "noisegap.augmentations.RecordedLogMelNoise"
+    ]
+
+    assert parameters["sample_rate"] == 32000
+    assert parameters["window_size"] == 1024
+    assert parameters["hop_size"] == 320
+    assert parameters["fmax"] == 14000
+    assert parameters["padding_value_db"] == -100.0
+    assert parameters["padding_tolerance_db"] == 0.01
+    assert parameters["generator_seed"] == training_augmentation_seed(2)
+    assert config["noisegap_protocol"]["frontend_cache"] == (
+        "precomputed_clean_features"
+    )
+    assert config["noisegap_protocol"]["runtime"]["loader_workers"] == 4
+    assert config["dataset"]["train_loader_kwargs"]["num_workers"] == 4
 
 
 def test_article_legacy_config_records_exact_historical_behavior() -> None:

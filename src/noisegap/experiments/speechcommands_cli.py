@@ -91,6 +91,21 @@ def build_parser() -> argparse.ArgumentParser:
             "dataset padding transform for variable-length corpora."
         ),
     )
+    parser.add_argument(
+        "--min-recorded-crop-rms-ratio",
+        type=float,
+        default=0.1,
+        help=(
+            "Reject recorded-noise crops whose RMS is below this fraction of "
+            "the complete source-file RMS."
+        ),
+    )
+    parser.add_argument(
+        "--tracking-metric",
+        choices=("accuracy", "uar", "f1"),
+        default="uar",
+        help="Checkpoint-selection metric for every generated training run.",
+    )
     return parser
 
 
@@ -114,6 +129,11 @@ def main() -> None:
         dev_manifest,
         test_manifest,
     )
+    tracking_metric = {
+        "accuracy": "autrainer.metrics.Accuracy",
+        "uar": "autrainer.metrics.UAR",
+        "f1": "autrainer.metrics.F1",
+    }[args.tracking_metric]
 
     spec = WaveformSweepSpec(
         models=tuple(MODELS[name] for name in args.models),
@@ -148,6 +168,10 @@ def main() -> None:
                 base_config=args.base_config,
                 dataset_label=args.dataset_label,
                 noise_order=args.noise_order,
+                min_recorded_crop_rms_ratio=(
+                    args.min_recorded_crop_rms_ratio
+                ),
+                tracking_metric=tracking_metric,
             ),
         )
         records.append(
@@ -159,6 +183,10 @@ def main() -> None:
                 "base_config": args.base_config,
                 "dataset": args.dataset_label,
                 "corruption_order": args.noise_order,
+                "min_recorded_crop_rms_ratio": (
+                    args.min_recorded_crop_rms_ratio
+                ),
+                "tracking_metric": tracking_metric,
                 "seed": run.seed,
                 "train_domain": run.train_domain.label,
                 "test_domain": run.test_domain.label,

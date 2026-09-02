@@ -113,10 +113,30 @@ def test_recorded_noise_crop_retries_silent_regions_deterministically() -> None:
 
 
 def test_recorded_noise_crop_fails_closed_if_every_crop_is_silent() -> None:
-    with pytest.raises(ValueError, match="nonzero-power crop"):
+    with pytest.raises(ValueError, match="zero power"):
         fit_nonzero_noise_sample_axis(
             torch.zeros((1, 100)),
             10,
             torch.Generator().manual_seed(0),
             max_attempts=4,
         )
+
+
+def test_recorded_noise_crop_rejects_near_silent_regions() -> None:
+    noise = torch.cat(
+        (
+            torch.full((1, 100), 1e-5),
+            torch.ones((1, 100)),
+        ),
+        dim=-1,
+    )
+
+    crop = fit_nonzero_noise_sample_axis(
+        noise,
+        20,
+        torch.Generator().manual_seed(0),
+        max_attempts=128,
+        min_crop_rms_ratio=0.1,
+    )
+
+    assert float(crop.square().mean()) >= float(noise.square().mean()) * 0.01

@@ -29,6 +29,23 @@ def test_synthetic_evaluation_is_stable_per_item() -> None:
     assert torch.equal(first.features, second.features)
 
 
+def test_synthetic_noise_preserves_pann_floor_padding() -> None:
+    features = torch.full((1, 30, 64), -30.0)
+    features[:, 20:, :] = -100.0
+    item = DataItem(features.clone(), 0, 11)
+    augmentation = SyntheticLogMelNoise(
+        snr_db=5,
+        deterministic_per_item=True,
+        generator_seed=42,
+        padding_value_db=-100.0,
+        padding_tolerance_db=0.01,
+    )
+
+    augmentation.apply(item)
+
+    assert torch.equal(item.features[:, 20:, :], features[:, 20:, :])
+
+
 def test_legacy_article_synthetic_uses_abs_gaussian_power_field() -> None:
     features = torch.full((1, 3, 4), -20.0)
     item = DataItem(features.clone(), 0, 7)
@@ -117,6 +134,27 @@ def test_recorded_noise_preserves_channel_time_mel(tmp_path: Path) -> None:
     item = DataItem(torch.full((1, 30, 64), -30.0), 0, 1)
     augmentation.apply(item)
     assert item.features.shape == (1, 30, 64)
+
+
+def test_recorded_noise_preserves_pann_floor_padding(tmp_path: Path) -> None:
+    noise_file = tmp_path / "noise.wav"
+    noise_file.touch()
+    augmentation = RecordedLogMelNoise(
+        str(tmp_path),
+        snr_db=5,
+        deterministic_per_item=True,
+        generator_seed=42,
+        padding_value_db=-100.0,
+        padding_tolerance_db=0.01,
+    )
+    augmentation._load_noise_power = lambda _: torch.ones((1, 30, 64))
+    features = torch.full((1, 30, 64), -30.0)
+    features[:, 20:, :] = -100.0
+    item = DataItem(features.clone(), 0, 1)
+
+    augmentation.apply(item)
+
+    assert torch.equal(item.features[:, 20:, :], features[:, 20:, :])
 
 
 def test_recorded_noise_decodes_wav_to_channel_time_mel(tmp_path: Path) -> None:

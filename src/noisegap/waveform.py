@@ -71,8 +71,9 @@ def fit_nonzero_noise_sample_axis(
     generator: torch.Generator,
     *,
     max_attempts: int = 32,
+    min_crop_rms_ratio: float = 0.0,
 ) -> torch.Tensor:
-    """Fit recorded noise while rejecting undefined zero-power crops.
+    """Fit recorded noise while rejecting silent or inactive crops.
 
     The source file is kept fixed so files retain uniform sampling weight. Only
     the crop offset is resampled, using the caller's generator so evaluation
@@ -80,11 +81,21 @@ def fit_nonzero_noise_sample_axis(
     """
     if max_attempts <= 0:
         raise ValueError("max_attempts must be positive.")
+    if not math.isfinite(min_crop_rms_ratio) or not 0 <= min_crop_rms_ratio <= 1:
+        raise ValueError("min_crop_rms_ratio must be finite and in [0, 1].")
+    source_power = noise.square().mean()
+    if source_power <= EPSILON:
+        raise ValueError("Recorded noise source has zero power.")
+    minimum_crop_power = max(
+        EPSILON,
+        float(source_power) * min_crop_rms_ratio**2,
+    )
     for _ in range(max_attempts):
         fitted = fit_noise_sample_axis(noise, target_samples, generator)
-        if fitted.square().mean() > EPSILON:
+        if fitted.square().mean() >= minimum_crop_power:
             return fitted
     raise ValueError(
-        "Could not sample a nonzero-power crop from recorded noise after "
-        f"{max_attempts} attempts."
+        "Could not sample an active recorded-noise crop after "
+        f"{max_attempts} attempts (minimum RMS ratio "
+        f"{min_crop_rms_ratio})."
     )
