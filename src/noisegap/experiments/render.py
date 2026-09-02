@@ -230,6 +230,7 @@ def render_config(
                 "torch_num_threads": 1,
                 "torch_num_interop_threads": 1,
                 "loader_workers": loader_workers,
+                "persistent_workers": loader_workers > 0,
             },
         },
         "augmentation": {
@@ -248,6 +249,7 @@ def render_config(
             {
                 "pin_memory": True,
                 "prefetch_factor": 2,
+                "persistent_workers": True,
             }
         )
     config["dataset"] = {

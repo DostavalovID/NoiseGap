@@ -83,6 +83,7 @@ def test_rendered_protocol_is_explicit() -> None:
         "torch_num_threads": 1,
         "torch_num_interop_threads": 1,
         "loader_workers": 0,
+        "persistent_workers": False,
     }
     assert config["torch_num_threads"] == 1
     assert config["torch_num_interop_threads"] == 1
@@ -221,6 +222,7 @@ def test_matched_feature_config_uses_waveform_frontend_and_padding() -> None:
     )
     assert config["noisegap_protocol"]["runtime"]["loader_workers"] == 4
     assert config["dataset"]["train_loader_kwargs"]["num_workers"] == 4
+    assert config["dataset"]["train_loader_kwargs"]["persistent_workers"] is True
     assert config["noisegap_feature_manifest"].endswith("features.json")
 
 
