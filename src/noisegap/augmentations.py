@@ -438,7 +438,7 @@ class RecordedLogMelNoise(_SeededNoise):
         cached = self._cache.get(path)
         if cached is not None:
             self._cache.move_to_end(path)
-            return cached.clone()
+            return cached
 
         waveform, sample_rate = audiofile.read(str(path), always_2d=True)
         tensor = torch.as_tensor(waveform, dtype=torch.float32)
@@ -466,7 +466,7 @@ class RecordedLogMelNoise(_SeededNoise):
             self._cache.move_to_end(path)
             while len(self._cache) > self.cache_size:
                 self._cache.popitem(last=False)
-        return power.clone()
+        return power
 
     def apply(self, item: AbstractDataItem) -> AbstractDataItem:
         generator = self._generator_for(item)
@@ -580,7 +580,7 @@ class RecordedWaveformNoise(_SeededNoise):
         cached = self._cache.get(path)
         if cached is not None:
             self._cache.move_to_end(path)
-            return cached.clone()
+            return cached
 
         waveform, sample_rate = audiofile.read(str(path), always_2d=True)
         tensor = torch.as_tensor(waveform, dtype=torch.float32)
@@ -596,7 +596,7 @@ class RecordedWaveformNoise(_SeededNoise):
             self._cache.move_to_end(path)
             while len(self._cache) > self.cache_size:
                 self._cache.popitem(last=False)
-        return tensor.clone()
+        return tensor
 
     def apply(self, item: AbstractDataItem) -> AbstractDataItem:
         generator = self._generator_for(item)

@@ -178,6 +178,34 @@ def test_recorded_noise_decodes_wav_to_channel_time_mel(tmp_path: Path) -> None:
     assert noise_power.shape[2] == 64
 
 
+def test_recorded_log_mel_cache_is_read_only_during_augmentation(
+    tmp_path: Path,
+) -> None:
+    noise_file = tmp_path / "noise.wav"
+    samples = [
+        int(12000 * math.sin(2 * math.pi * 440 * index / 16000))
+        for index in range(16000)
+    ]
+    with wave.open(str(noise_file), "wb") as stream:
+        stream.setnchannels(1)
+        stream.setsampwidth(2)
+        stream.setframerate(16000)
+        stream.writeframes(struct.pack(f"<{len(samples)}h", *samples))
+    augmentation = RecordedLogMelNoise(
+        str(tmp_path),
+        snr_db=5,
+        deterministic_per_item=True,
+        generator_seed=42,
+    )
+    cached = augmentation._load_noise_power(noise_file)
+    expected = cached.clone()
+
+    augmentation(DataItem(torch.full((1, 30, 64), -30.0), 0, 1))
+
+    assert augmentation._load_noise_power(noise_file).data_ptr() == cached.data_ptr()
+    assert torch.equal(cached, expected)
+
+
 def test_recorded_noise_serializes_portably(tmp_path: Path) -> None:
     (tmp_path / "noise.wav").touch()
     augmentation = RecordedLogMelNoise(str(tmp_path), snr_db=5)

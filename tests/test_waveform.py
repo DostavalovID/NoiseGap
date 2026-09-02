@@ -107,6 +107,28 @@ def test_recorded_waveform_resamples_and_hits_snr(tmp_path: Path) -> None:
         0.0,
         9,
     )
+    cached = augmentation._load_waveform(noise_path)
+    assert augmentation._load_waveform(noise_path).data_ptr() == cached.data_ptr()
+
+
+def test_recorded_waveform_cache_is_read_only_during_augmentation(
+    tmp_path: Path,
+) -> None:
+    noise_path = tmp_path / "noise.wav"
+    t = np.arange(16000, dtype=np.float32) / 16000
+    audiofile.write(noise_path, np.sin(2 * math.pi * 440 * t), 16000)
+    augmentation = RecordedWaveformNoise(
+        noise_root=str(tmp_path),
+        snr_db=5,
+        deterministic_per_item=True,
+        generator_seed=2,
+    )
+    cached = augmentation._load_waveform(noise_path)
+    expected = cached.clone()
+
+    augmentation(DataItem(torch.full((1, 4000), 0.2), 0, 9))
+
+    assert torch.equal(cached, expected)
 
 
 def test_noise_repeats_only_along_sample_axis() -> None:
