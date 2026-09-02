@@ -77,6 +77,11 @@ def test_provenance_binds_successful_artifacts(tmp_path: Path) -> None:
     test_artifact = tmp_path / "_test" / "test_holistic.yaml"
     test_artifact.parent.mkdir()
     test_artifact.write_text("accuracy:\n  all: 0.5\n", encoding="utf-8")
+    test_results = tmp_path / "_test" / "test_results.csv"
+    test_results.write_text(
+        "index,predictions,A,B\n0,A,1.0,0.0\n",
+        encoding="utf-8",
+    )
     checkpoint = tmp_path / "_best" / "model.pt"
     checkpoint.parent.mkdir()
     checkpoint.write_bytes(b"checkpoint")
@@ -86,6 +91,9 @@ def test_provenance_binds_successful_artifacts(tmp_path: Path) -> None:
 
     assert provenance["artifacts"]["test_holistic"]["sha256"] == sha256_file(
         test_artifact
+    )
+    assert provenance["artifacts"]["test_results"]["sha256"] == sha256_file(
+        test_results
     )
     assert provenance["artifacts"]["output_checkpoint"]["sha256"] == sha256_file(
         checkpoint

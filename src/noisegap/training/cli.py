@@ -157,12 +157,21 @@ def finalize_provenance(
     """Bind successful run artifacts to the pre-run provenance record."""
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
     artifacts = {}
-    test_artifact = output_dir / "_test" / "test_holistic.yaml"
-    if test_artifact.is_file():
-        artifacts["test_holistic"] = {
-            "path": str(test_artifact),
-            "sha256": sha256_file(test_artifact),
-        }
+    test_artifacts = {
+        "test_holistic": "test_holistic.yaml",
+        "test_results": "test_results.csv",
+        "test_indices": "test_indices.npy",
+        "test_targets": "test_targets.npy",
+        "test_outputs": "test_outputs.npy",
+        "test_losses": "test_losses.npy",
+    }
+    for artifact_name, filename in test_artifacts.items():
+        artifact_path = output_dir / "_test" / filename
+        if artifact_path.is_file():
+            artifacts[artifact_name] = {
+                "path": str(artifact_path),
+                "sha256": sha256_file(artifact_path),
+            }
     if cfg.iterations > 0:
         checkpoint = output_dir / "_best" / "model.pt"
         if not checkpoint.is_file():

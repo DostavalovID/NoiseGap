@@ -21,6 +21,7 @@ noisegap-prepare-speechcommands-noise = "noisegap.datasets.speechcommands:main"
 noisegap-run = "noisegap.experiments.run:main"
 noisegap-summarize = "noisegap.analysis:main"
 noisegap-aggregate-seeds = "noisegap.statistics:main"
+noisegap-diagnose = "noisegap.diagnostics:main"
 noisegap-train = "noisegap.training.cli:main"
 
 [dependency-groups]

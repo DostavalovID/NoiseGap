@@ -156,6 +156,25 @@ uv run noisegap-aggregate-seeds \
   --output generated/timit-feature-cnn10-article-legacy-summary-by-seed.csv
 ```
 
+For every completed cell, independently reconstruct the confusion matrix from
+the test manifest and saved predictions, verify Accuracy/UAR/Macro-F1 against
+the holistic metrics, and flag predictions concentrated in one class:
+
+```bash
+uv run noisegap-diagnose \
+  --manifest generated/timit-feature-cnn10-article-legacy-seed0/manifest.json \
+             generated/timit-feature-cnn10-article-legacy-seed1/manifest.json \
+             generated/timit-feature-cnn10-article-legacy-seed2/manifest.json \
+  --output generated/timit-feature-cnn10-article-legacy-diagnostics.csv \
+  --collapse-threshold 0.9
+```
+
+Historical runs predate raw-prediction hashes and are marked
+`test_results_provenance_verified=False`; their recomputed metrics must still
+match the hashed holistic artifact exactly. New runs hash the raw prediction,
+target, output, index, and loss arrays and can be checked with
+`--require-hashed-predictions`.
+
 Generated feature-space configs set PyTorch intra-op and inter-op CPU threads to
 one while retaining the article's single-process DataLoader. This removes severe
 small-tensor thread-pool overhead without changing sample order or random-number
