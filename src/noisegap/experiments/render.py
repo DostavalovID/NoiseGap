@@ -1,5 +1,6 @@
 """Render auditable Hydra configs from matrix entries."""
 
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,26 @@ from ..seeding import (
 from .matrix import Domain, RunPhase, RunSpec
 
 _FEATURE_IMPLEMENTATIONS = {"corrected", "article_legacy", "matched_32k"}
+
+
+def snapshot_config_tree(destination: Path, source: Path | None = None) -> int:
+    """Copy project Hydra YAMLs so autrainer can re-compose them at runtime."""
+    if source is None:
+        source = Path(__file__).resolve().parents[3] / "conf"
+    source = source.resolve()
+    destination = destination.resolve()
+    if not source.is_dir():
+        raise FileNotFoundError(f"Hydra config root does not exist: {source}")
+    count = 0
+    for path in source.rglob("*.yaml"):
+        relative = path.relative_to(source)
+        output = destination / relative
+        output.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, output)
+        count += 1
+    if count == 0:
+        raise ValueError(f"Hydra config root contains no YAML files: {source}")
+    return count
 
 
 def _augmentation(

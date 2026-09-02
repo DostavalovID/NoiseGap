@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from .matrix import Domain, validate_recorded_manifest_split
-from .render import write_config
+from .render import snapshot_config_tree, write_config
 from .waveform_matrix import ModelSpec, WaveformSweepSpec, build_waveform_matrix
 from .waveform_render import render_waveform_config
 
@@ -157,6 +157,7 @@ def main() -> None:
     runs = build_waveform_matrix(spec)
     configs_dir = output / "configs"
     results_dir = output / "results"
+    config_snapshot_count = snapshot_config_tree(configs_dir)
     records = []
     for run in runs:
         config_name = f"{run.phase.value}_{run.experiment_id}.yaml"
@@ -187,6 +188,7 @@ def main() -> None:
                     args.min_recorded_crop_rms_ratio
                 ),
                 "tracking_metric": tracking_metric,
+                "config_snapshot_count": config_snapshot_count,
                 "seed": run.seed,
                 "train_domain": run.train_domain.label,
                 "test_domain": run.test_domain.label,

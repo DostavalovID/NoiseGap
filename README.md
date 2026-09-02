@@ -284,10 +284,12 @@ uv run noisegap-generate \
 ```
 
 With two domains and six SNR levels this produces a manifest with 12 diagonal
-training runs and 132 checkpoint-reuse evaluations. Generated files are ignored by
-Git; the specification and generator are the source of truth. Each evaluation
-config points directly to the `_best/model.pt` produced by its corresponding
-diagonal training config.
+training runs and 132 checkpoint-reuse evaluations. The generator also snapshots
+the project's Hydra YAML tree into `generated/audioset/configs`, because autrainer
+re-composes preprocessing configs from the supplied config directory during a run.
+Generated files are ignored by Git; the specification and generator are the source
+of truth. Each evaluation config points directly to the `_best/model.pt` produced
+by its corresponding diagonal training config.
 
 Run a generated config by adding its directory to Hydra's search path:
 

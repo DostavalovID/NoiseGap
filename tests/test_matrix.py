@@ -9,7 +9,7 @@ from noisegap.experiments.matrix import (
     build_matrix,
     validate_recorded_manifest_split,
 )
-from noisegap.experiments.render import render_config
+from noisegap.experiments.render import render_config, snapshot_config_tree
 from noisegap.seeding import training_augmentation_seed
 
 
@@ -71,6 +71,21 @@ def test_rendered_protocol_is_explicit() -> None:
     assert config["model"]["model_checkpoint"] == (
         "${results_dir}/SS_train-5_test-5/_best/model.pt"
     )
+
+
+def test_config_snapshot_copies_nested_hydra_yaml(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    (source / "preprocessing").mkdir(parents=True)
+    (source / "base.yaml").write_text("value: 1\n", encoding="utf-8")
+    (source / "preprocessing" / "feature.yaml").write_text(
+        "pipeline: []\n", encoding="utf-8"
+    )
+
+    count = snapshot_config_tree(tmp_path / "snapshot", source)
+
+    assert count == 2
+    assert (tmp_path / "snapshot" / "base.yaml").is_file()
+    assert (tmp_path / "snapshot" / "preprocessing" / "feature.yaml").is_file()
 
 
 def test_rendered_config_can_select_article_dataset_base() -> None:

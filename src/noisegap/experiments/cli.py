@@ -8,7 +8,7 @@ from pathlib import Path
 from noisegap.features import verify_feature_manifest
 
 from .matrix import Domain, SweepSpec, build_matrix, validate_recorded_manifest_split
-from .render import render_config, write_config
+from .render import render_config, snapshot_config_tree, write_config
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -128,6 +128,7 @@ def main() -> None:
     runs = build_matrix(spec)
     configs_dir = output / "configs"
     results_dir = output / "results"
+    config_snapshot_count = snapshot_config_tree(configs_dir)
 
     manifest = []
     for run in runs:
@@ -156,6 +157,7 @@ def main() -> None:
         record["feature_manifest"] = (
             str(feature_manifest) if feature_manifest is not None else None
         )
+        record["config_snapshot_count"] = config_snapshot_count
         record["train_domain"] = run.train_domain.label
         record["test_domain"] = run.test_domain.label
         record["config"] = str(Path("configs") / config_name)
