@@ -71,3 +71,4 @@ def test_pann_cache_reuses_only_explicitly_keyed_frontend_result() -> None:
 
     assert torch.equal(actual_cached, expected)
     assert not torch.equal(unkeyed, expected)
+    assert not hasattr(keyed_again, DETERMINISTIC_FRONTEND_CACHE_KEY)

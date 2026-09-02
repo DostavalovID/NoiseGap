@@ -58,6 +58,8 @@ class CachedPannMel(PannMel):
 
     def __call__(self, item: AbstractDataItem) -> AbstractDataItem:
         key = getattr(item, DETERMINISTIC_FRONTEND_CACHE_KEY, None)
+        if key is not None:
+            delattr(item, DETERMINISTIC_FRONTEND_CACHE_KEY)
         if key is not None and not isinstance(key, Hashable):
             raise TypeError("Deterministic frontend cache keys must be hashable.")
         if key is not None and self.cache_size > 0:
