@@ -22,7 +22,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--snr",
         type=int,
         nargs="+",
-        default=[-5, 0, 10, 20, 30, 40],
+        help="Legacy shorthand that sets both --train-snr and --test-snr.",
+    )
+    parser.add_argument(
+        "--train-snr",
+        type=int,
+        nargs="+",
+        help="Training SNR levels; defaults to -5 0 10 20 30 40.",
+    )
+    parser.add_argument(
+        "--test-snr",
+        type=int,
+        nargs="+",
+        help="Evaluation SNR levels; defaults to -5 0 10 20 30 40.",
     )
     parser.add_argument(
         "--feature-manifest",
@@ -69,6 +81,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
+    if args.snr is not None and (
+        args.train_snr is not None or args.test_snr is not None
+    ):
+        raise ValueError("Use either --snr or --train-snr/--test-snr, not both.")
+    default_snr = (-5, 0, 10, 20, 30, 40)
+    train_snr_levels = tuple(args.snr or args.train_snr or default_snr)
+    test_snr_levels = tuple(args.snr or args.test_snr or default_snr)
     output = args.output.resolve()
     recorded_root = args.recorded_root.resolve()
     train_manifest = args.recorded_train_csv.resolve()
@@ -122,7 +141,8 @@ def main() -> None:
                 test_manifest=test_manifest,
             ),
         ),
-        snr_levels=tuple(args.snr),
+        train_snr_levels=train_snr_levels,
+        test_snr_levels=test_snr_levels,
         iterations=args.iterations,
     )
     runs = build_matrix(spec)

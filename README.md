@@ -118,6 +118,11 @@ uv run noisegap-generate \
   --recorded-test-csv data/AudioSet-Balanced-Noise/test.csv
 ```
 
+For a headline run that trains only at 20 dB and evaluates the same checkpoints
+across the complete SNR profile, pass `--train-snr 20 --test-snr -5 0 10 20 30
+40`. This produces two training runs and 22 checkpoint-reuse evaluations per seed.
+Use the legacy `--snr` option only when the training and test grids are identical.
+
 These commands reproduce the article's feature-space question. The separate
 `noisegap-generate-speechcommands` command remains the CNN10 waveform-level
 confound-control experiment.

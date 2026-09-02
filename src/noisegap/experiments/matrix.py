@@ -88,6 +88,8 @@ class Domain:
 class SweepSpec:
     domains: tuple[Domain, ...]
     snr_levels: tuple[int, ...] = (-5, 0, 10, 20, 30, 40)
+    train_snr_levels: tuple[int, ...] | None = None
+    test_snr_levels: tuple[int, ...] | None = None
     iterations: int = 15
 
     def __post_init__(self) -> None:
@@ -97,8 +99,20 @@ class SweepSpec:
             raise ValueError("Domain codes must be unique.")
         if not self.snr_levels:
             raise ValueError("At least one SNR level is required.")
+        if self.train_snr_levels is not None and not self.train_snr_levels:
+            raise ValueError("At least one training SNR level is required.")
+        if self.test_snr_levels is not None and not self.test_snr_levels:
+            raise ValueError("At least one test SNR level is required.")
         if self.iterations <= 0:
             raise ValueError("iterations must be positive.")
+
+    @property
+    def resolved_train_snr_levels(self) -> tuple[int, ...]:
+        return self.train_snr_levels or self.snr_levels
+
+    @property
+    def resolved_test_snr_levels(self) -> tuple[int, ...]:
+        return self.test_snr_levels or self.snr_levels
 
 
 @dataclass(frozen=True)
@@ -123,20 +137,33 @@ class RunSpec:
 
 def build_matrix(spec: SweepSpec) -> list[RunSpec]:
     """Build a train-first matrix followed by checkpoint-reuse evaluations."""
-    runs = []
+    runs = [
+        RunSpec(
+            phase=RunPhase.TRAIN,
+            train_domain=domain,
+            test_domain=domain,
+            train_snr_db=snr,
+            test_snr_db=snr,
+            iterations=spec.iterations,
+        )
+        for domain in spec.domains
+        for snr in spec.resolved_train_snr_levels
+    ]
     for train_domain in spec.domains:
         for test_domain in spec.domains:
-            for train_snr in spec.snr_levels:
-                for test_snr in spec.snr_levels:
+            for train_snr in spec.resolved_train_snr_levels:
+                for test_snr in spec.resolved_test_snr_levels:
                     diagonal = train_domain == test_domain and train_snr == test_snr
+                    if diagonal:
+                        continue
                     runs.append(
                         RunSpec(
-                            phase=(RunPhase.TRAIN if diagonal else RunPhase.EVALUATE),
+                            phase=RunPhase.EVALUATE,
                             train_domain=train_domain,
                             test_domain=test_domain,
                             train_snr_db=train_snr,
                             test_snr_db=test_snr,
-                            iterations=spec.iterations if diagonal else 0,
+                            iterations=0,
                         )
                     )
-    return sorted(runs, key=lambda run: run.phase is RunPhase.EVALUATE)
+    return runs

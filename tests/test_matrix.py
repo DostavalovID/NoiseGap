@@ -42,6 +42,26 @@ def test_matrix_has_12_train_and_132_evaluate_runs() -> None:
     assert all(run.phase is RunPhase.EVALUATE for run in runs[12:])
 
 
+def test_headline_matrix_reuses_two_checkpoints_across_test_snr() -> None:
+    base = _spec()
+    spec = SweepSpec(
+        domains=base.domains,
+        train_snr_levels=(20,),
+        test_snr_levels=(-5, 0, 10, 20, 30, 40),
+        iterations=30,
+    )
+
+    runs = build_matrix(spec)
+    train = [run for run in runs if run.phase is RunPhase.TRAIN]
+    evaluate = [run for run in runs if run.phase is RunPhase.EVALUATE]
+
+    assert len(runs) == 24
+    assert len(train) == 2
+    assert len(evaluate) == 22
+    assert {run.train_snr_db for run in train} == {20}
+    assert {run.test_snr_db for run in evaluate} == {-5, 0, 10, 20, 30, 40}
+
+
 def test_rendered_protocol_is_explicit() -> None:
     run = next(run for run in build_matrix(_spec()) if run.phase is RunPhase.EVALUATE)
     config = render_config(
