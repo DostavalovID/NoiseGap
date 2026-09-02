@@ -1,4 +1,7 @@
+from pathlib import Path
+
 import torch
+import yaml
 
 from noisegap.models import SeededCnn10
 
@@ -28,3 +31,16 @@ def test_seeded_cnn10_changes_initialization_across_seeds() -> None:
     second = SeededCnn10(output_dim=3, initialization_seed=8)
 
     assert not torch.equal(first.out.weight, second.out.weight)
+
+
+def test_cnn10_experiment_configs_use_seeded_initialization() -> None:
+    root = Path(__file__).parents[1]
+    for name in ("Cnn10-32k-T-seeded.yaml", "Cnn10-32k-T-waveform.yaml"):
+        config = yaml.safe_load((root / "conf" / "model" / name).read_text())
+        assert config["_target_"] == "noisegap.models.SeededCnn10"
+        assert config["initialization_seed"] == "${seed}"
+
+    feature = yaml.safe_load(
+        (root / "conf" / "noisegap_article_timit_feature_matched.yaml").read_text()
+    )
+    assert {"override model": "Cnn10-32k-T-seeded"} in feature["defaults"]
