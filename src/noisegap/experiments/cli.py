@@ -68,6 +68,8 @@ def build_parser() -> argparse.ArgumentParser:
             "the other feature implementations."
         ),
     )
+    parser.add_argument("--torch-num-threads", type=int, default=1)
+    parser.add_argument("--torch-num-interop-threads", type=int, default=1)
     parser.add_argument(
         "--tracking-metric",
         choices=("accuracy", "uar", "f1"),
@@ -111,6 +113,8 @@ def main() -> None:
         loader_workers = 4 if args.feature_implementation == "matched_32k" else 0
     if loader_workers < 0:
         raise ValueError("loader_workers must be non-negative.")
+    if args.torch_num_threads <= 0 or args.torch_num_interop_threads <= 0:
+        raise ValueError("Torch thread counts must be positive.")
     metric_names = {
         "accuracy": "autrainer.metrics.Accuracy",
         "uar": "autrainer.metrics.UAR",
@@ -164,6 +168,8 @@ def main() -> None:
                 loader_workers=loader_workers,
                 tracking_metric=tracking_metric,
                 feature_manifest=feature_manifest,
+                torch_num_threads=args.torch_num_threads,
+                torch_num_interop_threads=args.torch_num_interop_threads,
             ),
         )
         record = asdict(run)
@@ -174,6 +180,8 @@ def main() -> None:
         record["feature_implementation"] = args.feature_implementation
         record["loader_workers"] = loader_workers
         record["tracking_metric"] = tracking_metric
+        record["torch_num_threads"] = args.torch_num_threads
+        record["torch_num_interop_threads"] = args.torch_num_interop_threads
         record["feature_manifest"] = (
             str(feature_manifest) if feature_manifest is not None else None
         )

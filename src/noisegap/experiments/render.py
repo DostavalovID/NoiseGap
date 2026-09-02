@@ -147,6 +147,8 @@ def render_config(
     loader_workers: int = 0,
     tracking_metric: str = "autrainer.metrics.Accuracy",
     feature_manifest: Path | None = None,
+    torch_num_threads: int = 1,
+    torch_num_interop_threads: int = 1,
 ) -> dict:
     """Render one config with explicit train/dev/test semantics."""
     if not base_config or "/" in base_config or "\\" in base_config:
@@ -155,6 +157,8 @@ def render_config(
         raise ValueError("seed must be non-negative.")
     if loader_workers < 0:
         raise ValueError("loader_workers must be non-negative.")
+    if torch_num_threads <= 0 or torch_num_interop_threads <= 0:
+        raise ValueError("Torch thread counts must be positive.")
     if tracking_metric not in {
         "autrainer.metrics.Accuracy",
         "autrainer.metrics.UAR",
@@ -195,8 +199,8 @@ def render_config(
         "seed": seed,
         "batch_size": 64,
         "learning_rate": 0.001,
-        "torch_num_threads": 1,
-        "torch_num_interop_threads": 1,
+        "torch_num_threads": torch_num_threads,
+        "torch_num_interop_threads": torch_num_interop_threads,
         "noisegap_protocol": {
             "phase": run.phase.value,
             "seed": seed,
@@ -227,8 +231,8 @@ def render_config(
             "train_worker_seed_offset_policy": "base_plus_worker_id",
             "checkpoint_selection_metric": tracking_metric,
             "runtime": {
-                "torch_num_threads": 1,
-                "torch_num_interop_threads": 1,
+                "torch_num_threads": torch_num_threads,
+                "torch_num_interop_threads": torch_num_interop_threads,
                 "loader_workers": loader_workers,
                 "persistent_workers": loader_workers > 0,
             },
