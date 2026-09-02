@@ -78,6 +78,23 @@ def _paired_test(values: list[float]) -> tuple[float, float]:
     return statistic, p_value
 
 
+def _sign_test(values: list[float]) -> tuple[int, int, float]:
+    """Return non-zero count, positive count, and exact two-sided sign test."""
+    nonzero = [value for value in values if value != 0.0]
+    positives = sum(value > 0.0 for value in nonzero)
+    if not nonzero:
+        return 0, 0, 1.0
+    p_value = float(
+        stats.binomtest(
+            positives,
+            n=len(nonzero),
+            p=0.5,
+            alternative="two-sided",
+        ).pvalue
+    )
+    return len(nonzero), positives, p_value
+
+
 def _holm_adjust(p_values: list[float]) -> list[float]:
     """Return Holm-adjusted p-values in the original input order."""
     if not p_values:
@@ -230,6 +247,7 @@ def summarize_directional_contrasts(
                     differences
                 )
                 t_statistic, p_value = _paired_test(differences)
+                sign_nonzero, sign_positive, sign_p_value = _sign_test(differences)
                 output: dict[str, object] = {
                     "pipeline": pipeline,
                     **dict(zip(model_fields, model_key, strict=True)),
@@ -249,6 +267,9 @@ def summarize_directional_contrasts(
                     "difference_ci95_high": ci_high,
                     "paired_t_statistic": t_statistic,
                     "paired_t_p_value_uncorrected": p_value,
+                    "sign_test_nonzero_n": sign_nonzero,
+                    "sign_test_positive_n": sign_positive,
+                    "sign_test_p_value_two_sided": sign_p_value,
                     "gaussian_to_recorded_values": json.dumps(g_to_r_values),
                     "recorded_to_gaussian_values": json.dumps(r_to_g_values),
                     "difference_values": json.dumps(differences),

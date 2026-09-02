@@ -77,6 +77,9 @@ def test_directional_contrasts_use_seed_level_pairs(tmp_path: Path) -> None:
         [0.1, 0.1, 0.1]
     )
     assert float(overall_accuracy["paired_t_p_value_uncorrected"]) < 1e-20
+    assert overall_accuracy["sign_test_nonzero_n"] == "3"
+    assert overall_accuracy["sign_test_positive_n"] == "3"
+    assert float(overall_accuracy["sign_test_p_value_two_sided"]) == 0.25
     assert overall_accuracy["paired_t_holm_family_size"] == "1"
     assert float(
         overall_accuracy["paired_t_p_value_holm_within_profile"]
@@ -105,6 +108,8 @@ def test_directional_contrasts_use_seed_level_pairs(tmp_path: Path) -> None:
     assert float(train_zero_collapse["gaussian_to_recorded_mean"]) == 1.0
     assert float(train_zero_collapse["recorded_to_gaussian_mean"]) == 1.0
     assert float(train_zero_collapse["difference_mean"]) == 0.0
+    assert train_zero_collapse["sign_test_nonzero_n"] == "0"
+    assert float(train_zero_collapse["sign_test_p_value_two_sided"]) == 1.0
 
 
 def test_directional_contrasts_reject_unpaired_cells(tmp_path: Path) -> None:
