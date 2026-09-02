@@ -78,6 +78,22 @@ def _paired_test(values: list[float]) -> tuple[float, float]:
     return statistic, p_value
 
 
+def _holm_adjust(p_values: list[float]) -> list[float]:
+    """Return Holm-adjusted p-values in the original input order."""
+    if not p_values:
+        return []
+    if any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in p_values):
+        raise ValueError("Holm correction requires finite p-values in [0, 1].")
+    ordered = sorted(enumerate(p_values), key=lambda item: item[1])
+    adjusted = [0.0] * len(p_values)
+    running_maximum = 0.0
+    for rank, (index, p_value) in enumerate(ordered):
+        candidate = min(1.0, (len(p_values) - rank) * p_value)
+        running_maximum = max(running_maximum, candidate)
+        adjusted[index] = running_maximum
+    return adjusted
+
+
 def _profile_specs(
     rows: list[dict[str, str]],
 ) -> list[tuple[str, str, Callable[[dict[str, str]], bool]]]:
@@ -238,6 +254,27 @@ def summarize_directional_contrasts(
                     "difference_values": json.dumps(differences),
                 }
                 outputs.append(output)
+
+    family_fields = (*model_fields, "profile", "metric")
+    families: dict[tuple[str, ...], list[dict[str, object]]] = defaultdict(list)
+    for output in outputs:
+        families[
+            tuple(str(output[field]) for field in family_fields)
+        ].append(output)
+    for family in families.values():
+        finite_rows = [
+            row
+            for row in family
+            if math.isfinite(float(row["paired_t_p_value_uncorrected"]))
+        ]
+        adjusted = _holm_adjust(
+            [float(row["paired_t_p_value_uncorrected"]) for row in finite_rows]
+        )
+        for row in family:
+            row["paired_t_holm_family_size"] = len(finite_rows)
+            row["paired_t_p_value_holm_within_profile"] = math.nan
+        for row, adjusted_p_value in zip(finite_rows, adjusted, strict=True):
+            row["paired_t_p_value_holm_within_profile"] = adjusted_p_value
 
     fixed_fields = ["pipeline", *model_fields, "profile", "snr_db", "metric"]
     remaining_fields = [

@@ -77,6 +77,23 @@ def test_directional_contrasts_use_seed_level_pairs(tmp_path: Path) -> None:
         [0.1, 0.1, 0.1]
     )
     assert float(overall_accuracy["paired_t_p_value_uncorrected"]) < 1e-20
+    assert overall_accuracy["paired_t_holm_family_size"] == "1"
+    assert float(
+        overall_accuracy["paired_t_p_value_holm_within_profile"]
+    ) == pytest.approx(float(overall_accuracy["paired_t_p_value_uncorrected"]))
+
+    test_snr_accuracy = [
+        row
+        for row in rows
+        if row["profile"] == "test_snr" and row["metric"] == "accuracy"
+    ]
+    assert len(test_snr_accuracy) == 2
+    assert {row["paired_t_holm_family_size"] for row in test_snr_accuracy} == {"2"}
+    assert all(
+        float(row["paired_t_p_value_holm_within_profile"])
+        >= float(row["paired_t_p_value_uncorrected"])
+        for row in test_snr_accuracy
+    )
 
     train_zero_collapse = next(
         row
