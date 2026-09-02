@@ -196,9 +196,9 @@ def test_timit_noise_precedes_padding_and_frontend() -> None:
     assert config["noisegap_protocol"]["corruption_order"] == -105
     assert dataset_config["file_type"] == "WAV"
     assert dataset_config["train_loader_kwargs"] == {
-        "num_workers": 8,
+        "num_workers": 16,
         "pin_memory": True,
         "prefetch_factor": 2,
     }
-    assert dataset_config["dev_loader_kwargs"]["num_workers"] == 4
-    assert dataset_config["test_loader_kwargs"]["num_workers"] == 4
+    assert dataset_config["dev_loader_kwargs"]["num_workers"] == 8
+    assert dataset_config["test_loader_kwargs"]["num_workers"] == 8
