@@ -219,14 +219,17 @@ uv run noisegap-contrast \
 ```
 
 The output contains overall, matched-SNR, train-SNR, and test-SNR profiles with
-raw seed differences, sample SD, 95% t intervals, and explicitly uncorrected
-paired t-test p-values. Collapse rate is reported beside Accuracy, UAR, and
-Macro-F1.
+raw seed differences, sample SD, 95% t intervals, uncorrected paired t-test
+p-values, and Holm-adjusted p-values across the SNR levels within each profile
+and metric. It also reports an exact two-sided sign test that does not assume
+normally distributed seed differences. Collapse rate is reported beside
+Accuracy, UAR, and Macro-F1.
 
 Generated feature-space configs set PyTorch intra-op and inter-op CPU threads to
-one while retaining the article's single-process DataLoader. This removes severe
-small-tensor thread-pool overhead without changing sample order or random-number
-streams; the effective values are recorded in run provenance.
+one. The matched 32 kHz mode defaults to four persistent DataLoader workers,
+while legacy reproduction modes keep a zero-worker loader. This removes severe
+small-tensor thread-pool overhead without changing deterministic evaluation
+realizations; the effective values are recorded in run provenance.
 
 For the article-compatible TIMIT split with CNN10 waveform corruption, keep the
 same two noise domains, six train/test SNRs, optimizer, learning rate, 15-epoch

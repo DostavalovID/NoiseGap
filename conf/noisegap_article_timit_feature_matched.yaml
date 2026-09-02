@@ -1,7 +1,7 @@
 defaults:
   - noisegap_base
   - override dataset: TIMIT-sentencetype-article-feature-matched-32k
-  - override model: Cnn10-32k-T
+  - override model: Cnn10-32k-T-seeded
   - _self_
 
 experiment_id: noisegap-article-timit-feature-matched
