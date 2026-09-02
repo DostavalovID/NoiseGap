@@ -9,7 +9,7 @@ transform:
         current_sr: 16000
         target_sr: 32000
         order: -95
-    - autrainer.transforms.PannMel:
+    - noisegap.transforms.CachedPannMel:
         sample_rate: 32000
         window_size: 1024
         hop_size: 320
@@ -19,4 +19,5 @@ transform:
         ref: 1.0
         amin: 1.0e-10
         top_db: null
+        cache_size: 1024
         order: -90

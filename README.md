@@ -262,6 +262,11 @@ fixed corruption seeds across all model-training seeds, so model variance is not
 confounded with different evaluation noise and checkpoint selection does not
 reuse the final-test realization.
 
+The online CNN10 frontend caches PANN tensors only for those deterministic
+development and test waveform realizations inside persistent DataLoader workers.
+Random training corruption is never cached. The first computation is the same
+PANN transform used without the cache; later epochs reuse its exact tensor.
+
 ### Matched 32 kHz feature-space control
 
 The corrected feature-space control caches only the deterministic clean

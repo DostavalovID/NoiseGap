@@ -146,7 +146,7 @@ def test_cnn10_composed_transform_order_keeps_noise_before_frontend() -> None:
         ("Expand", -100),
         ("WaveformGaussianNoise", -97),
         ("Resample", -95),
-        ("PannMel", -90),
+        ("CachedPannMel", -90),
     ]
 
 
@@ -187,7 +187,7 @@ def test_timit_noise_precedes_padding_and_frontend() -> None:
         ("WaveformGaussianNoise", -105),
         ("Expand", -100),
         ("Resample", -95),
-        ("PannMel", -90),
+        ("CachedPannMel", -90),
     ]
     assert config["defaults"][0] == "noisegap_article_timit_waveform"
     assert config["noisegap_protocol"]["dataset"] == (

@@ -22,6 +22,7 @@ from .log_mel import (
     mix_power_at_snr,
     valid_frame_mask,
 )
+from .transforms import DETERMINISTIC_FRONTEND_CACHE_KEY
 from .waveform import fit_nonzero_noise_sample_axis, mix_waveform_at_snr
 
 
@@ -325,6 +326,17 @@ class WaveformGaussianNoise(_SeededNoise):
             noise,
             self.snr_db,
         )
+        if self.deterministic_per_item:
+            setattr(
+                item,
+                DETERMINISTIC_FRONTEND_CACHE_KEY,
+                (
+                    "waveform_gaussian_v1",
+                    self._deterministic_seed,
+                    float(self.snr_db),
+                    int(item.index),
+                ),
+            )
         return item
 
 
@@ -608,4 +620,19 @@ class RecordedWaveformNoise(_SeededNoise):
             min_crop_rms_ratio=self.min_crop_rms_ratio,
         ).to(device=item.features.device, dtype=item.features.dtype)
         item.features = mix_waveform_at_snr(item.features, noise, self.snr_db)
+        if self.deterministic_per_item:
+            setattr(
+                item,
+                DETERMINISTIC_FRONTEND_CACHE_KEY,
+                (
+                    "recorded_waveform_v1",
+                    self._deterministic_seed,
+                    str(self.noise_files[file_index]),
+                    float(self.snr_db),
+                    self.sample_rate,
+                    self.max_crop_attempts,
+                    float(self.min_crop_rms_ratio),
+                    int(item.index),
+                ),
+            )
         return item

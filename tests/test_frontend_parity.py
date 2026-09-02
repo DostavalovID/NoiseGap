@@ -6,6 +6,8 @@ from autrainer import instantiate_shorthand
 from autrainer.core.structs import DataItem
 from autrainer.transforms import SmartCompose, TransformManager
 
+from noisegap.transforms import DETERMINISTIC_FRONTEND_CACHE_KEY, CachedPannMel
+
 
 def test_cached_matched_frontend_equals_online_waveform_frontend() -> None:
     repository = Path(__file__).resolve().parents[1]
@@ -42,3 +44,30 @@ def test_cached_matched_frontend_equals_online_waveform_frontend() -> None:
 
     assert online_features.shape == (1, 779, 64)
     assert torch.equal(cached_features, online_features)
+
+
+def test_pann_cache_reuses_only_explicitly_keyed_frontend_result() -> None:
+    kwargs = {
+        "sample_rate": 32000,
+        "window_size": 1024,
+        "hop_size": 320,
+        "mel_bins": 64,
+        "fmin": 50,
+        "fmax": 14000,
+        "ref": 1.0,
+        "amin": 1.0e-10,
+        "top_db": None,
+    }
+    transform = CachedPannMel(**kwargs, cache_size=2)
+    waveform = torch.randn((1, 32000), generator=torch.Generator().manual_seed(7))
+    first = DataItem(waveform.clone(), 0, 4)
+    setattr(first, DETERMINISTIC_FRONTEND_CACHE_KEY, ("test", 4))
+    expected = transform(first).features.clone()
+
+    keyed_again = DataItem(torch.zeros_like(waveform), 0, 4)
+    setattr(keyed_again, DETERMINISTIC_FRONTEND_CACHE_KEY, ("test", 4))
+    actual_cached = transform(keyed_again).features
+    unkeyed = transform(DataItem(torch.zeros_like(waveform), 0, 4)).features
+
+    assert torch.equal(actual_cached, expected)
+    assert not torch.equal(unkeyed, expected)

@@ -8,6 +8,7 @@ import torch
 from autrainer.core.structs import DataItem
 
 from noisegap.augmentations import RecordedWaveformNoise, WaveformGaussianNoise
+from noisegap.transforms import DETERMINISTIC_FRONTEND_CACHE_KEY
 from noisegap.waveform import (
     fit_noise_sample_axis,
     fit_nonzero_noise_sample_axis,
@@ -44,6 +45,24 @@ def test_waveform_gaussian_is_deterministic_per_item() -> None:
 
     assert torch.equal(first.features, second.features)
     assert _snr_db(signal, first.features) == pytest.approx(10, abs=1e-4)
+    assert getattr(first, DETERMINISTIC_FRONTEND_CACHE_KEY) == (
+        "waveform_gaussian_v1",
+        11,
+        10.0,
+        3,
+    )
+
+
+def test_random_training_waveform_does_not_enable_frontend_cache() -> None:
+    augmentation = WaveformGaussianNoise(
+        snr_db=10,
+        deterministic_per_item=False,
+        generator_seed=11,
+    )
+
+    item = augmentation(DataItem(torch.ones((1, 4000)), 0, 3))
+
+    assert not hasattr(item, DETERMINISTIC_FRONTEND_CACHE_KEY)
 
 
 def test_deterministic_eval_noise_is_invariant_to_worker_seed_offset() -> None:
@@ -78,6 +97,16 @@ def test_recorded_waveform_resamples_and_hits_snr(tmp_path: Path) -> None:
 
     assert item.features.shape == signal.shape
     assert _snr_db(signal, item.features) == pytest.approx(5, abs=1e-3)
+    assert getattr(item, DETERMINISTIC_FRONTEND_CACHE_KEY) == (
+        "recorded_waveform_v1",
+        2,
+        str(noise_path),
+        5.0,
+        16000,
+        32,
+        0.0,
+        9,
+    )
 
 
 def test_noise_repeats_only_along_sample_axis() -> None:
