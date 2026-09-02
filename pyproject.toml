@@ -26,6 +26,7 @@ noisegap-aggregate-seeds = "noisegap.statistics:main"
 noisegap-diagnose = "noisegap.diagnostics:main"
 noisegap-contrast = "noisegap.contrasts:main"
 noisegap-index-features = "noisegap.features:main"
+noisegap-calibrate-snr = "noisegap.representation_snr:main"
 noisegap-train = "noisegap.training.cli:main"
 
 [dependency-groups]

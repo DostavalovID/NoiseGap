@@ -11,6 +11,7 @@ from noisegap.augmentations import RecordedWaveformNoise, WaveformGaussianNoise
 from noisegap.waveform import (
     fit_noise_sample_axis,
     fit_nonzero_noise_sample_axis,
+    fit_nonzero_noise_sample_axis_with_metadata,
     mix_waveform_at_snr,
 )
 
@@ -140,3 +141,21 @@ def test_recorded_noise_crop_rejects_near_silent_regions() -> None:
     )
 
     assert float(crop.square().mean()) >= float(noise.square().mean()) * 0.01
+
+
+def test_recorded_noise_crop_reports_reproducible_metadata() -> None:
+    noise = torch.arange(20, dtype=torch.float32).reshape(1, -1)
+    generator = torch.Generator().manual_seed(3)
+
+    fitted, metadata = fit_nonzero_noise_sample_axis_with_metadata(
+        noise,
+        5,
+        generator,
+        min_crop_rms_ratio=0.1,
+    )
+
+    expected = noise[:, metadata.start_sample : metadata.start_sample + 5]
+    assert torch.equal(fitted, expected)
+    assert metadata.attempts == 1
+    assert metadata.repeated is False
+    assert metadata.crop_rms_ratio > 0.1

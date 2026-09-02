@@ -37,7 +37,7 @@ def _feature_path(relative_audio_path: str) -> Path:
     return Path(relative_audio_path).with_suffix(".npy")
 
 
-def _load_preprocessing(config_path: Path) -> tuple[Any, SmartCompose]:
+def load_preprocessing(config_path: Path) -> tuple[Any, SmartCompose]:
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     if not isinstance(config, dict) or not {"file_handler", "pipeline"}.issubset(
         config
@@ -140,7 +140,7 @@ def build_feature_manifest(
                 }
             )
 
-    handler, pipeline = _load_preprocessing(preprocessing_config)
+    handler, pipeline = load_preprocessing(preprocessing_config)
     parity = []
     for split, relative_audio in _parity_paths(rows, parity_samples_per_split):
         audio_path = dataset_root / "default" / relative_audio
