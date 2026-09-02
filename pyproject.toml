@@ -8,6 +8,7 @@ dependencies = [
     "audiofile>=1.3.0,<2",
     "autrainer==0.8.1",
     "PyYAML>=6.0.1,<7",
+    "scipy>=1.10,<2",
     "torch>=2.0.0,<3",
     "torchaudio>=2.0.0,<3",
 ]
@@ -22,6 +23,7 @@ noisegap-run = "noisegap.experiments.run:main"
 noisegap-summarize = "noisegap.analysis:main"
 noisegap-aggregate-seeds = "noisegap.statistics:main"
 noisegap-diagnose = "noisegap.diagnostics:main"
+noisegap-contrast = "noisegap.contrasts:main"
 noisegap-train = "noisegap.training.cli:main"
 
 [dependency-groups]

@@ -179,6 +179,23 @@ If an older run also predates dataset-split provenance, diagnostics refuse it
 unless its exact test CSV is supplied with `--unhashed-test-split`. Such rows
 remain explicitly marked `test_split_provenance_verified=False`.
 
+Directional comparisons are paired at the training-seed level rather than
+treating SNR cells as independent replicates:
+
+```bash
+uv run noisegap-contrast \
+  --input generated/timit-feature-cnn10-diagnostics.csv \
+  --output generated/timit-feature-cnn10-contrasts.csv \
+  --pipeline feature-matched \
+  --gaussian-domain SyntheticLogMel \
+  --recorded-domain RecordedNoise
+```
+
+The output contains overall, matched-SNR, train-SNR, and test-SNR profiles with
+raw seed differences, sample SD, 95% t intervals, and explicitly uncorrected
+paired t-test p-values. Collapse rate is reported beside Accuracy, UAR, and
+Macro-F1.
+
 Generated feature-space configs set PyTorch intra-op and inter-op CPU threads to
 one while retaining the article's single-process DataLoader. This removes severe
 small-tensor thread-pool overhead without changing sample order or random-number
