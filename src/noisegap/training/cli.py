@@ -71,6 +71,16 @@ def _input_metadata(cfg: DictConfig) -> dict:
                     "sha256": sha256_file(path),
                 }
 
+    feature_manifest = cfg.get("noisegap_feature_manifest")
+    if feature_manifest:
+        path = Path(str(feature_manifest)).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"Configured feature manifest is missing: {path}")
+        artifacts["feature_manifest"] = {
+            "path": str(path),
+            "sha256": sha256_file(path),
+        }
+
     augmentation_config = cfg.get("augmentation", {})
     augmentation = (
         OmegaConf.to_container(augmentation_config, resolve=True)

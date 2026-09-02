@@ -20,11 +20,14 @@ def test_provenance_binds_resolved_config_and_protocol(tmp_path: Path) -> None:
         )
     noise = tmp_path / "noise.csv"
     noise.write_text("path\nnoise.wav\n", encoding="utf-8")
+    feature_manifest = tmp_path / "features.json"
+    feature_manifest.write_text('{"schema_version": 1}', encoding="utf-8")
     cfg = OmegaConf.create(
         {
             "value": "${answer}",
             "answer": 42,
             "dataset": {"path": str(dataset)},
+            "noisegap_feature_manifest": str(feature_manifest),
             "augmentation": {
                 "train": {
                     "pipeline": [{"RecordedNoise": {"manifest_csv": str(noise)}}]
@@ -59,6 +62,9 @@ def test_provenance_binds_resolved_config_and_protocol(tmp_path: Path) -> None:
     assert provenance["input_metadata"]["noise_manifests"]["dev"][0][
         "sha256"
     ] == sha256_file(noise)
+    assert provenance["input_metadata"]["feature_manifest"]["sha256"] == (
+        sha256_file(feature_manifest)
+    )
 
 
 def test_provenance_binds_successful_artifacts(tmp_path: Path) -> None:

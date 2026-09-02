@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from noisegap.features import verify_feature_manifest
+
 
 def load_manifest(path: Path) -> list[dict[str, Any]]:
     """Load and minimally validate a NoiseGap manifest."""
@@ -73,6 +75,13 @@ def run_manifest(
     """Execute selected records and verify their checkpoint dependency."""
     manifest_path = manifest_path.resolve()
     records = select_runs(load_manifest(manifest_path), phase, index)
+    feature_manifests = {
+        Path(record["feature_manifest"]).resolve()
+        for record in records
+        if record.get("feature_manifest")
+    }
+    for feature_manifest in sorted(feature_manifests):
+        verify_feature_manifest(feature_manifest)
     environment = os.environ.copy()
     repository_conf = Path(__file__).resolve().parents[3] / "conf"
     if repository_conf.is_dir():

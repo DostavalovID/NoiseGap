@@ -5,6 +5,8 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+from noisegap.features import verify_feature_manifest
+
 from .matrix import Domain, SweepSpec, build_matrix, validate_recorded_manifest_split
 from .render import render_config, write_config
 
@@ -21,6 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         nargs="+",
         default=[-5, 0, 10, 20, 30, 40],
+    )
+    parser.add_argument(
+        "--feature-manifest",
+        type=Path,
+        help="Required content manifest for matched_32k cached clean features.",
     )
     parser.add_argument("--iterations", type=int, default=15)
     parser.add_argument("--seed", type=int, default=0)
@@ -96,6 +103,12 @@ def main() -> None:
             "uar" if args.feature_implementation == "matched_32k" else "accuracy"
         )
     tracking_metric = metric_names[tracking_metric_key]
+    feature_manifest = args.feature_manifest
+    if args.feature_implementation == "matched_32k":
+        if feature_manifest is None:
+            raise ValueError("matched_32k requires --feature-manifest.")
+        feature_manifest = feature_manifest.resolve()
+        verify_feature_manifest(feature_manifest)
     spec = SweepSpec(
         domains=(
             Domain("S", "SyntheticLogMel", "synthetic"),
@@ -129,6 +142,7 @@ def main() -> None:
                 feature_implementation=args.feature_implementation,
                 loader_workers=loader_workers,
                 tracking_metric=tracking_metric,
+                feature_manifest=feature_manifest,
             ),
         )
         record = asdict(run)
@@ -139,6 +153,9 @@ def main() -> None:
         record["feature_implementation"] = args.feature_implementation
         record["loader_workers"] = loader_workers
         record["tracking_metric"] = tracking_metric
+        record["feature_manifest"] = (
+            str(feature_manifest) if feature_manifest is not None else None
+        )
         record["train_domain"] = run.train_domain.label
         record["test_domain"] = run.test_domain.label
         record["config"] = str(Path("configs") / config_name)

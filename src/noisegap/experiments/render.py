@@ -125,6 +125,7 @@ def render_config(
     feature_implementation: str = "corrected",
     loader_workers: int = 0,
     tracking_metric: str = "autrainer.metrics.Accuracy",
+    feature_manifest: Path | None = None,
 ) -> dict:
     """Render one config with explicit train/dev/test semantics."""
     if not base_config or "/" in base_config or "\\" in base_config:
@@ -248,6 +249,8 @@ def render_config(
                 "frontend_cache": "precomputed_clean_features",
             }
         )
+        if feature_manifest is not None:
+            config["noisegap_feature_manifest"] = str(feature_manifest.resolve())
     if feature_implementation == "article_legacy":
         config["noisegap_protocol"].update(
             {

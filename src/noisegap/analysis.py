@@ -46,9 +46,12 @@ def _validate_protocol(record: dict[str, Any], provenance: dict[str, Any]) -> No
 
 
 def _validate_input_metadata(experiment_id: str, provenance: dict[str, Any]) -> None:
-    """Verify that every split/noise manifest still matches its recorded hash."""
+    """Verify that every input manifest still matches its recorded hash."""
     input_metadata = provenance.get("input_metadata", {})
     artifacts = list(input_metadata.get("dataset_splits", {}).values())
+    feature_manifest = input_metadata.get("feature_manifest")
+    if feature_manifest:
+        artifacts.append(feature_manifest)
     for phase_artifacts in input_metadata.get("noise_manifests", {}).values():
         artifacts.extend(phase_artifacts)
     for artifact in artifacts:

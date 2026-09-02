@@ -168,6 +168,7 @@ def test_matched_feature_config_uses_waveform_frontend_and_padding() -> None:
         seed=2,
         feature_implementation="matched_32k",
         loader_workers=4,
+        feature_manifest=Path("features.json"),
     )
     parameters = config["augmentation"]["train"]["pipeline"][0][
         "noisegap.augmentations.RecordedLogMelNoise"
@@ -185,6 +186,7 @@ def test_matched_feature_config_uses_waveform_frontend_and_padding() -> None:
     )
     assert config["noisegap_protocol"]["runtime"]["loader_workers"] == 4
     assert config["dataset"]["train_loader_kwargs"]["num_workers"] == 4
+    assert config["noisegap_feature_manifest"].endswith("features.json")
 
 
 def test_article_legacy_config_records_exact_historical_behavior() -> None:
