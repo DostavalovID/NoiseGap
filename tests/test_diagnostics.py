@@ -11,7 +11,12 @@ from noisegap.diagnostics import diagnose_manifests
 from noisegap.training.cli import sha256_file
 
 
-def _write_diagnostic_run(tmp_path: Path, *, hash_predictions: bool = True) -> Path:
+def _write_diagnostic_run(
+    tmp_path: Path,
+    *,
+    hash_predictions: bool = True,
+    hash_test_split: bool = True,
+) -> Path:
     result_dir = tmp_path / "results" / "cell"
     test_dir = result_dir / "_test"
     test_dir.mkdir(parents=True)
@@ -97,16 +102,14 @@ def _write_diagnostic_run(tmp_path: Path, *, hash_predictions: bool = True) -> P
         "git_dirty": False,
         "resolved_config_sha256": hashlib.sha256(resolved.encode()).hexdigest(),
         "protocol": OmegaConf.to_container(cfg.noisegap_protocol),
-        "input_metadata": {
-            "dataset_splits": {
-                "test": {
-                    "path": str(test_split),
-                    "sha256": sha256_file(test_split),
-                }
-            }
-        },
+        "input_metadata": {"dataset_splits": {}},
         "artifacts": artifacts,
     }
+    if hash_test_split:
+        provenance["input_metadata"]["dataset_splits"]["test"] = {
+            "path": str(test_split),
+            "sha256": sha256_file(test_split),
+        }
     (result_dir / "noisegap_provenance.json").write_text(
         json.dumps(provenance),
         encoding="utf-8",
@@ -151,6 +154,7 @@ def test_diagnostics_recompute_metrics_and_detect_collapse(tmp_path: Path) -> No
     assert float(row["majority_prediction_share"]) == 1.0
     assert row["collapsed"] == "True"
     assert row["test_results_provenance_verified"] == "True"
+    assert row["test_split_provenance_verified"] == "True"
     assert row["confusion_A_as_C"] == "1"
     assert row["confusion_C_as_C"] == "2"
 
@@ -189,3 +193,19 @@ def test_diagnostics_reject_metric_mismatch(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Recomputed accuracy mismatch"):
         diagnose_manifests([manifest], tmp_path / "diagnostics.csv")
+
+
+def test_diagnostics_requires_explicit_unhashed_test_split(tmp_path: Path) -> None:
+    manifest = _write_diagnostic_run(tmp_path, hash_test_split=False)
+    with pytest.raises(ValueError, match="Missing test split provenance"):
+        diagnose_manifests([manifest], tmp_path / "strict.csv")
+
+    output = tmp_path / "legacy.csv"
+    diagnose_manifests(
+        [manifest],
+        output,
+        unhashed_test_split=tmp_path / "dataset" / "test.csv",
+    )
+    with output.open(newline="", encoding="utf-8") as stream:
+        row = next(csv.DictReader(stream))
+    assert row["test_split_provenance_verified"] == "False"

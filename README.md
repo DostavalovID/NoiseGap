@@ -175,6 +175,10 @@ match the hashed holistic artifact exactly. New runs hash the raw prediction,
 target, output, index, and loss arrays and can be checked with
 `--require-hashed-predictions`.
 
+If an older run also predates dataset-split provenance, diagnostics refuse it
+unless its exact test CSV is supplied with `--unhashed-test-split`. Such rows
+remain explicitly marked `test_split_provenance_verified=False`.
+
 Generated feature-space configs set PyTorch intra-op and inter-op CPU threads to
 one while retaining the article's single-process DataLoader. This removes severe
 small-tensor thread-pool overhead without changing sample order or random-number

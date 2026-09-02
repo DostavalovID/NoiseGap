@@ -95,6 +95,7 @@ def _diagnose_record(
     *,
     collapse_threshold: float,
     require_hashed_predictions: bool,
+    unhashed_test_split: Path | None,
 ) -> dict[str, object]:
     experiment_id = str(record["experiment_id"])
     result_dir = Path(record["result_dir"])
@@ -129,13 +130,19 @@ def _diagnose_record(
     split_artifact = provenance.get("input_metadata", {}).get(
         "dataset_splits", {}
     ).get("test")
-    if not split_artifact:
+    split_verified = split_artifact is not None
+    if split_verified:
+        split_path = Path(str(split_artifact.get("path", "")))
+        if not split_path.is_file() or sha256_file(split_path) != split_artifact.get(
+            "sha256"
+        ):
+            raise ValueError(f"Test split hash mismatch: {experiment_id}")
+    elif unhashed_test_split is not None:
+        split_path = unhashed_test_split.resolve()
+        if not split_path.is_file():
+            raise FileNotFoundError(f"Unhashed test split is missing: {split_path}")
+    else:
         raise ValueError(f"Missing test split provenance: {experiment_id}")
-    split_path = Path(str(split_artifact.get("path", "")))
-    if not split_path.is_file() or sha256_file(split_path) != split_artifact.get(
-        "sha256"
-    ):
-        raise ValueError(f"Test split hash mismatch: {experiment_id}")
 
     config = OmegaConf.load(config_path)
     OmegaConf.resolve(config)
@@ -228,6 +235,8 @@ def _diagnose_record(
             "collapsed": majority_share >= collapse_threshold,
             "test_results_sha256": sha256_file(predictions_path),
             "test_results_provenance_verified": predictions_verified,
+            "test_split_sha256": sha256_file(split_path),
+            "test_split_provenance_verified": split_verified,
         }
     )
     for label in classes:
@@ -246,6 +255,7 @@ def diagnose_manifests(
     *,
     collapse_threshold: float = 0.9,
     require_hashed_predictions: bool = False,
+    unhashed_test_split: Path | None = None,
 ) -> int:
     """Write one verified class-balance diagnostic row per completed cell."""
     if not 0.0 < collapse_threshold <= 1.0:
@@ -261,6 +271,7 @@ def diagnose_manifests(
                 record,
                 collapse_threshold=collapse_threshold,
                 require_hashed_predictions=require_hashed_predictions,
+                unhashed_test_split=unhashed_test_split,
             )
             identity = (
                 row.get("model"),
@@ -299,6 +310,8 @@ def diagnose_manifests(
         "collapsed",
         "test_results_sha256",
         "test_results_provenance_verified",
+        "test_split_sha256",
+        "test_split_provenance_verified",
     ]
     present_preferred = [
         field for field in preferred_fields if any(field in row for row in rows)
@@ -323,12 +336,21 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--collapse-threshold", type=float, default=0.9)
     parser.add_argument("--require-hashed-predictions", action="store_true")
+    parser.add_argument(
+        "--unhashed-test-split",
+        type=Path,
+        help=(
+            "Explicit legacy fallback for runs that predate dataset-split "
+            "provenance. The output is marked as unverified."
+        ),
+    )
     args = parser.parse_args()
     count = diagnose_manifests(
         args.manifest,
         args.output,
         collapse_threshold=args.collapse_threshold,
         require_hashed_predictions=args.require_hashed_predictions,
+        unhashed_test_split=args.unhashed_test_split,
     )
     print(f"Wrote {count} class-balance diagnostic cell(s).")
 
