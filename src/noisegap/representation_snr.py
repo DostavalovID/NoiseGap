@@ -78,6 +78,7 @@ def calibrate_representation_snr(
     recorded_manifest: Path,
     preprocessing_config: Path,
     *,
+    dataset_split: str = "test",
     snr_levels: tuple[int, ...],
     samples: int,
     sample_seed: int = 0,
@@ -89,11 +90,14 @@ def calibrate_representation_snr(
     recorded_root = recorded_root.resolve()
     recorded_manifest = recorded_manifest.resolve()
     preprocessing_config = preprocessing_config.resolve()
-    with (dataset_root / "test.csv").open(newline="", encoding="utf-8") as stream:
-        test_rows = list(csv.DictReader(stream))
-    if samples < 1 or samples > len(test_rows):
-        raise ValueError(f"samples must be in 1..{len(test_rows)}")
-    indexed_rows = list(enumerate(test_rows))
+    if dataset_split not in {"train", "dev", "test"}:
+        raise ValueError("dataset_split must be train, dev, or test.")
+    split_path = dataset_root / f"{dataset_split}.csv"
+    with split_path.open(newline="", encoding="utf-8") as stream:
+        split_rows = list(csv.DictReader(stream))
+    if samples < 1 or samples > len(split_rows):
+        raise ValueError(f"samples must be in 1..{len(split_rows)}")
+    indexed_rows = list(enumerate(split_rows))
     random.Random(sample_seed).shuffle(indexed_rows)
     selected = indexed_rows[:samples]
     noise_paths = _manifest_paths(recorded_root, recorded_manifest)
@@ -151,6 +155,7 @@ def calibrate_representation_snr(
                 ).features
                 output.append(
                     {
+                        "dataset_split": dataset_split,
                         "dataset_index": dataset_index,
                         "source_path": row["path"],
                         "noise_domain": domain,
@@ -179,6 +184,11 @@ def main() -> None:
     parser.add_argument("--recorded-manifest", type=Path, required=True)
     parser.add_argument("--preprocessing-config", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--dataset-split",
+        choices=("train", "dev", "test"),
+        default="test",
+    )
     parser.add_argument("--snr", type=int, nargs="+", default=[-5, 0, 10, 20, 30, 40])
     parser.add_argument("--samples", type=int, default=40)
     parser.add_argument("--sample-seed", type=int, default=0)
@@ -190,6 +200,7 @@ def main() -> None:
         args.recorded_root,
         args.recorded_manifest,
         args.preprocessing_config,
+        dataset_split=args.dataset_split,
         snr_levels=tuple(args.snr),
         samples=args.samples,
         sample_seed=args.sample_seed,
@@ -207,7 +218,10 @@ def main() -> None:
             "mean separately transformed added-noise Mel power on clean speech frames."
         ),
         "cross_term_policy": "components transformed separately",
-        "test_split_sha256": _sha256(args.dataset_root / "test.csv"),
+        "dataset_split": args.dataset_split,
+        "dataset_split_sha256": _sha256(
+            args.dataset_root / f"{args.dataset_split}.csv"
+        ),
         "recorded_manifest_sha256": _sha256(args.recorded_manifest),
         "preprocessing_config_sha256": _sha256(args.preprocessing_config),
         "samples": args.samples,
