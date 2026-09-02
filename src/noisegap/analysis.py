@@ -49,6 +49,9 @@ def _validate_input_metadata(experiment_id: str, provenance: dict[str, Any]) -> 
     """Verify that every input manifest still matches its recorded hash."""
     input_metadata = provenance.get("input_metadata", {})
     artifacts = list(input_metadata.get("dataset_splits", {}).values())
+    dataset_split_manifest = input_metadata.get("dataset_split_manifest")
+    if dataset_split_manifest:
+        artifacts.append(dataset_split_manifest)
     feature_manifest = input_metadata.get("feature_manifest")
     if feature_manifest:
         artifacts.append(feature_manifest)

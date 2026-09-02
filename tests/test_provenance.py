@@ -20,6 +20,10 @@ def test_provenance_binds_resolved_config_and_protocol(tmp_path: Path) -> None:
         )
     noise = tmp_path / "noise.csv"
     noise.write_text("path\nnoise.wav\n", encoding="utf-8")
+    noise_split_manifest = tmp_path / "split_manifest.json"
+    noise_split_manifest.write_text('{"policy": "test"}', encoding="utf-8")
+    dataset_split_manifest = dataset / "split_manifest.json"
+    dataset_split_manifest.write_text('{"policy": "speaker"}', encoding="utf-8")
     feature_manifest = tmp_path / "features.json"
     feature_manifest.write_text('{"schema_version": 1}', encoding="utf-8")
     cfg = OmegaConf.create(
@@ -59,11 +63,17 @@ def test_provenance_binds_resolved_config_and_protocol(tmp_path: Path) -> None:
     assert provenance["input_metadata"]["noise_manifests"]["train"][0][
         "sha256"
     ] == sha256_file(noise)
+    assert provenance["input_metadata"]["noise_manifests"]["train"][1][
+        "sha256"
+    ] == sha256_file(noise_split_manifest)
     assert provenance["input_metadata"]["noise_manifests"]["dev"][0][
         "sha256"
     ] == sha256_file(noise)
     assert provenance["input_metadata"]["feature_manifest"]["sha256"] == (
         sha256_file(feature_manifest)
+    )
+    assert provenance["input_metadata"]["dataset_split_manifest"]["sha256"] == (
+        sha256_file(dataset_split_manifest)
     )
 
 

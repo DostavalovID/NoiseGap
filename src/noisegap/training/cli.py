@@ -70,6 +70,12 @@ def _input_metadata(cfg: DictConfig) -> dict:
                     "path": str(path),
                     "sha256": sha256_file(path),
                 }
+        split_manifest = Path(str(dataset_path), "split_manifest.json").resolve()
+        if split_manifest.is_file():
+            artifacts["dataset_split_manifest"] = {
+                "path": str(split_manifest),
+                "sha256": sha256_file(split_manifest),
+            }
 
     feature_manifest = cfg.get("noisegap_feature_manifest")
     if feature_manifest:
@@ -115,8 +121,21 @@ def _input_metadata(cfg: DictConfig) -> dict:
                             f"Configured {phase} noise manifest is missing: {path}"
                         )
                     phase_artifacts.append(
-                        {"path": str(path), "sha256": sha256_file(path)}
+                        {
+                            "role": "noise_paths",
+                            "path": str(path),
+                            "sha256": sha256_file(path),
+                        }
                     )
+                    split_manifest = path.parent / "split_manifest.json"
+                    if split_manifest.is_file():
+                        phase_artifacts.append(
+                            {
+                                "role": "noise_split_policy",
+                                "path": str(split_manifest),
+                                "sha256": sha256_file(split_manifest),
+                            }
+                        )
                 artifacts["noise_manifests"][phase] = phase_artifacts
     return artifacts
 
