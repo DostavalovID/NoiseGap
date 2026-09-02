@@ -199,7 +199,6 @@ def test_timit_noise_precedes_padding_and_frontend() -> None:
         "num_workers": 8,
         "pin_memory": True,
         "prefetch_factor": 2,
-        "persistent_workers": True,
     }
     assert dataset_config["dev_loader_kwargs"]["num_workers"] == 4
     assert dataset_config["test_loader_kwargs"]["num_workers"] == 4

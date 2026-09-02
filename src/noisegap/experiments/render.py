@@ -253,7 +253,6 @@ def render_config(
             {
                 "pin_memory": True,
                 "prefetch_factor": 2,
-                "persistent_workers": True,
             }
         )
     config["dataset"] = {

@@ -228,7 +228,7 @@ def test_matched_feature_config_uses_waveform_frontend_and_padding() -> None:
     assert config["torch_num_threads"] == 8
     assert config["torch_num_interop_threads"] == 2
     assert config["dataset"]["train_loader_kwargs"]["num_workers"] == 4
-    assert config["dataset"]["train_loader_kwargs"]["persistent_workers"] is True
+    assert config["noisegap_protocol"]["runtime"]["persistent_workers"] is True
     assert config["noisegap_feature_manifest"].endswith("features.json")
 
 
