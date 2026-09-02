@@ -6,6 +6,8 @@ import json
 import random
 from pathlib import Path
 
+SYNTHETIC_BACKGROUND_FILES = {"pink_noise.wav", "white_noise.wav"}
+
 
 def _write_manifest(path: Path, files: list[Path], root: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -22,6 +24,7 @@ def prepare_background_noise_manifests(
     test_fraction: float = 1 / 3,
     dev_fraction: float = 1 / 3,
     seed: int = 0,
+    include_synthetic: bool = False,
 ) -> dict[str, object]:
     """Split SpeechCommands background WAV files into disjoint source files."""
     if not 0 < test_fraction < 1 or not 0 < dev_fraction < 1:
@@ -29,7 +32,11 @@ def prepare_background_noise_manifests(
     if dev_fraction + test_fraction >= 1:
         raise ValueError("dev_fraction + test_fraction must be less than 1.")
     noise_root = speechcommands_root / "default" / "_background_noise_"
-    files = sorted(noise_root.glob("*.wav"))
+    discovered = sorted(noise_root.glob("*.wav"))
+    excluded = [] if include_synthetic else [
+        path for path in discovered if path.name in SYNTHETIC_BACKGROUND_FILES
+    ]
+    files = [path for path in discovered if path not in excluded]
     if len(files) < 3:
         raise ValueError(
             "Expected at least three SpeechCommands background-noise WAV files "
@@ -58,6 +65,12 @@ def prepare_background_noise_manifests(
         "dev_fraction": dev_fraction,
         "test_fraction": test_fraction,
         "noise_root": str(noise_root.resolve()),
+        "synthetic_background_policy": (
+            "included_by_explicit_request"
+            if include_synthetic
+            else "exclude_named_white_and_pink_noise"
+        ),
+        "excluded_files": [path.name for path in excluded],
         "train_files": len(train_files),
         "dev_files": len(dev_files),
         "test_files": len(test_files),
@@ -85,6 +98,11 @@ def main() -> None:
     parser.add_argument("--test-fraction", type=float, default=1 / 3)
     parser.add_argument("--dev-fraction", type=float, default=1 / 3)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--include-synthetic",
+        action="store_true",
+        help="Include the official white_noise.wav and pink_noise.wav files.",
+    )
     args = parser.parse_args()
     summary = prepare_background_noise_manifests(
         args.speechcommands_root,
@@ -92,6 +110,7 @@ def main() -> None:
         test_fraction=args.test_fraction,
         dev_fraction=args.dev_fraction,
         seed=args.seed,
+        include_synthetic=args.include_synthetic,
     )
     print(
         "Prepared file-disjoint SpeechCommands background noise: "

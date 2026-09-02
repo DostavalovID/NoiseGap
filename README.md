@@ -139,6 +139,12 @@ test. The resulting split is 6/5/6 environments, so no recording environment or
 parallel microphone channel can cross a split. Cite the DEMAND dataset and its
 source record when reporting these runs.
 
+`noisegap-prepare-speechcommands-noise` now excludes the official
+`white_noise.wav` and `pink_noise.wav` files by default, so its recorded-noise
+manifests contain only the four real background recordings. It creates a
+source-file-disjoint 2/1/1 train/dev/test split. Pass `--include-synthetic` only
+for an explicitly labelled diagnostic control, never for a real-noise domain.
+
 These commands reproduce the article's feature-space question. The separate
 `noisegap-generate-speechcommands` command remains the CNN10 waveform-level
 confound-control experiment.
