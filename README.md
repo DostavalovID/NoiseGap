@@ -123,6 +123,22 @@ across the complete SNR profile, pass `--train-snr 20 --test-snr -5 0 10 20 30
 40`. This produces two training runs and 22 checkpoint-reuse evaluations per seed.
 Use the legacy `--snr` option only when the training and test grids are identical.
 
+For a real-noise control with source separation that can be audited, prepare the
+official 16 kHz DEMAND archives from Zenodo record 1227121:
+
+```bash
+uv run noisegap-prepare-demand \
+  --raw-root /path/to/shared/DEMAND/raw \
+  --output data/DEMAND-noise \
+  --download --workers 4
+```
+
+The preparation verifies every official archive MD5, extracts only `ch01.wav`,
+and assigns whole acoustic environments—not channels or crops—to train, dev, or
+test. The resulting split is 6/5/6 environments, so no recording environment or
+parallel microphone channel can cross a split. Cite the DEMAND dataset and its
+source record when reporting these runs.
+
 These commands reproduce the article's feature-space question. The separate
 `noisegap-generate-speechcommands` command remains the CNN10 waveform-level
 confound-control experiment.
